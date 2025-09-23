@@ -3,13 +3,13 @@
 import { useState } from "react"
 import Dashboard from "@/components/Dashboard"
 import Canvas from "@/components/Canvas"
+import { ProjectProvider } from "@/app/providers/ProjectProvider"
 
 export default function Home() {
   const [currentView, setCurrentView] = useState<"dashboard" | "canvas">("dashboard")
   const [currentProject, setCurrentProject] = useState<string | null>(null)
 
-  const handleCreateProject = () => {
-    const projectId = `project-${Date.now()}`
+  const handleCreateProject = (projectId: string) => {
     setCurrentProject(projectId)
     setCurrentView("canvas")
   }
@@ -25,12 +25,14 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      {currentView === "dashboard" ? (
-        <Dashboard onCreateProject={handleCreateProject} onOpenProject={handleOpenProject} />
-      ) : (
-        <Canvas projectId={currentProject!} onBackToDashboard={handleBackToDashboard} />
-      )}
-    </main>
+    <ProjectProvider>
+      <main className="min-h-screen bg-gray-50">
+        {currentView === "dashboard" ? (
+          <Dashboard onCreateProject={handleCreateProject} onOpenProject={handleOpenProject} />
+        ) : (
+          <Canvas projectId={currentProject!} onBackToDashboard={handleBackToDashboard} />
+        )}
+      </main>
+    </ProjectProvider>
   )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useCallback, useState, useRef } from 'react'
+import React, { useCallback, useState, useRef, useEffect } from 'react'
 import { 
   ReactFlow, 
   Background, 
@@ -16,7 +16,8 @@ import {
   Panel,
   NodeChange,
   EdgeChange,
-  useReactFlow
+  useReactFlow,
+  Viewport
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { Button } from '@/components/ui/button'
@@ -40,18 +41,27 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
   const { 
     nodes, 
     edges, 
+    viewport,
     addChatNode, 
     addContextNode,
     deleteNode,
     setNodes,
     setEdges,
+    setViewport,
     onConnect,
     resetCanvas
   } = useReactFlowStore()
 
   const [isDragOverCanvas, setIsDragOverCanvas] = useState(false)
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
-  const { screenToFlowPosition } = useReactFlow() // Use the useReactFlow hook
+  const { screenToFlowPosition, setViewport: rfSetViewport } = useReactFlow() // Use the useReactFlow hook
+  
+  // Sync viewport on mount
+  useEffect(() => {
+    if (viewport) {
+      rfSetViewport(viewport)
+    }
+  }, []) // Only on mount
 
 
   // Handle node changes directly in the store
@@ -184,6 +194,11 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
     const selectedNodes = nodes.filter(node => node.selected)
     selectedNodes.forEach(node => deleteNode(node.id))
   }, [nodes, deleteNode])
+  
+  // Handle viewport changes
+  const handleViewportChange = useCallback((newViewport: Viewport) => {
+    setViewport(newViewport)
+  }, [setViewport])
 
   return (
     <div className="w-full h-full" ref={reactFlowWrapper}>
@@ -193,9 +208,10 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
         onConnect={handleConnect}
+        onViewportChange={handleViewportChange}
         nodeTypes={nodeTypes}
-        fitView
-        fitViewOptions={{ padding: 100 }}
+        defaultViewport={viewport}
+        fitView={false}
         className="bg-gray-50"
         deleteKeyCode={["Backspace", "Delete"]}
         multiSelectionKeyCode={["Meta", "Ctrl"]}

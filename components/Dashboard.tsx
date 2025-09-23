@@ -2,65 +2,104 @@
 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { FileText, Video, ImageIcon, Clock, Bell, User, Play } from "lucide-react"
-import { useState } from "react"
+import { FileText, Video, ImageIcon, Clock, Bell, User, Play, Plus, Loader2 } from "lucide-react"
+import { useState, useEffect } from "react"
+import { loadProjects, createProject } from "@/lib/supabase/projects"
+import { ProjectWithCanvas } from "@/lib/supabase/types"
+import { toast } from "sonner"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 
 interface DashboardProps {
-  onCreateProject: () => void
+  onCreateProject: (projectId: string) => void
   onOpenProject: (projectId: string) => void
 }
 
-const mockProjects = [
-  {
-    id: "project-1",
-    name: "Summer Campaign 2024",
-    docs: 3,
-    videos: 2,
-    images: 5,
-    updatedAt: "2h ago",
-    thumbnail: "/summer-campaign-video-thumbnail.jpg",
-  },
-  {
-    id: "project-2",
-    name: "Product Launch Video",
-    docs: 1,
-    videos: 4,
-    images: 2,
-    updatedAt: "1d ago",
-    thumbnail: "/product-launch-thumbnail.png",
-  },
-  {
-    id: "project-3",
-    name: "Brand Guidelines",
-    docs: 8,
-    videos: 0,
-    images: 12,
-    updatedAt: "3d ago",
-    thumbnail: "/placeholder-ega9y.png",
-  },
-  {
-    id: "project-4",
-    name: "Social Media Assets",
-    docs: 2,
-    videos: 6,
-    images: 15,
-    updatedAt: "1w ago",
-    thumbnail: "/placeholder-yzkwc.png",
-  },
-  {
-    id: "project-5",
-    name: "Client Presentation",
-    docs: 5,
-    videos: 1,
-    images: 3,
-    updatedAt: "2w ago",
-    thumbnail: "/placeholder-95it6.png",
-  },
-]
+// Helper to format relative time
+function formatRelativeTime(dateString: string): string {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffSecs = Math.floor(diffMs / 1000)
+  const diffMins = Math.floor(diffSecs / 60)
+  const diffHours = Math.floor(diffMins / 60)
+  const diffDays = Math.floor(diffHours / 24)
+  const diffWeeks = Math.floor(diffDays / 7)
+  
+  if (diffSecs < 60) return 'just now'
+  if (diffMins < 60) return `${diffMins}m ago`
+  if (diffHours < 24) return `${diffHours}h ago`
+  if (diffDays < 7) return `${diffDays}d ago`
+  return `${diffWeeks}w ago`
+}
 
 export default function Dashboard({ onCreateProject, onOpenProject }: DashboardProps) {
   const [showProfileDropdown, setShowProfileDropdown] = useState(false)
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false)
+  const [projects, setProjects] = useState<ProjectWithCanvas[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isCreating, setIsCreating] = useState(false)
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [newProjectName, setNewProjectName] = useState('')
+  const [newProjectDescription, setNewProjectDescription] = useState('')
+  
+  // Load projects on mount
+  useEffect(() => {
+    loadProjectsData()
+  }, [])
+  
+  const loadProjectsData = async () => {
+    setIsLoading(true)
+    try {
+      const data = await loadProjects()
+      setProjects(data)
+    } catch (error) {
+      console.error('Error loading projects:', error)
+      toast.error('Failed to load projects')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+  
+  const handleCreateProject = async () => {
+    if (!newProjectName.trim()) {
+      toast.error('Please enter a project name')
+      return
+    }
+    
+    setIsCreating(true)
+    try {
+      const project = await createProject(
+        newProjectName.trim(),
+        newProjectDescription.trim() || undefined
+      )
+      
+      if (project) {
+        toast.success('Project created successfully')
+        setShowCreateDialog(false)
+        setNewProjectName('')
+        setNewProjectDescription('')
+        onCreateProject(project.id)
+      }
+    } catch (error: any) {
+      if (error?.message?.includes('duplicate')) {
+        toast.error('A project with this name already exists')
+      } else {
+        toast.error('Failed to create project')
+      }
+    } finally {
+      setIsCreating(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -159,66 +198,147 @@ export default function Dashboard({ onCreateProject, onOpenProject }: DashboardP
           <p className="text-xl text-white/90 mb-10 text-pretty max-w-2xl mx-auto leading-relaxed font-medium">
             Organize your video ad materials and have intelligent conversations with AI about your content.
           </p>
-          <Button
-            onClick={onCreateProject}
-            size="lg"
-            className="bg-white text-indigo-700 hover:bg-slate-50 font-semibold px-10 py-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 text-lg border-0 hover:scale-105"
-          >
-            Create New Project
-          </Button>
+          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+            <DialogTrigger asChild>
+              <Button
+                size="lg"
+                className="bg-white text-indigo-700 hover:bg-slate-50 font-semibold px-10 py-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 text-lg border-0 hover:scale-105"
+              >
+                Create New Project
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Create New Project</DialogTitle>
+                <DialogDescription>
+                  Enter a name and optional description for your new project.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="name">Project Name</Label>
+                  <Input
+                    id="name"
+                    value={newProjectName}
+                    onChange={(e) => setNewProjectName(e.target.value)}
+                    placeholder="My Awesome Project"
+                    disabled={isCreating}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="description">Description (optional)</Label>
+                  <Textarea
+                    id="description"
+                    value={newProjectDescription}
+                    onChange={(e) => setNewProjectDescription(e.target.value)}
+                    placeholder="Brief description of your project..."
+                    disabled={isCreating}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowCreateDialog(false)}
+                  disabled={isCreating}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleCreateProject}
+                  disabled={isCreating || !newProjectName.trim()}
+                >
+                  {isCreating ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    'Create Project'
+                  )}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </section>
 
       <section className="max-w-7xl mx-auto px-6 py-16">
         <div className="flex items-center justify-between mb-10">
           <h3 className="text-3xl font-bold text-slate-900 tracking-tight">All Boards</h3>
-          <Button
-            variant="outline"
-            onClick={onCreateProject}
-            className="rounded-xl bg-white border-slate-200 hover:bg-slate-50 font-medium px-6 py-2.5 shadow-sm hover:shadow-md transition-all duration-200"
-          >
-            New Project
-          </Button>
+          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+            <DialogTrigger asChild>
+              <Button
+                variant="outline"
+                className="rounded-xl bg-white border-slate-200 hover:bg-slate-50 font-medium px-6 py-2.5 shadow-sm hover:shadow-md transition-all duration-200"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                New Project
+              </Button>
+            </DialogTrigger>
+          </Dialog>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {mockProjects.map((project) => (
-            <Card
-              key={project.id}
-              className="overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer rounded-2xl border-0 shadow-sm bg-white hover:scale-[1.02] group"
-              onClick={() => onOpenProject(project.id)}
-            >
-              <div className="aspect-video bg-gradient-to-br from-slate-100 to-slate-200 relative overflow-hidden">
-                <img
-                  src={project.thumbnail || "/placeholder.svg"}
-                  alt={project.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-              </div>
-              <div className="p-6">
-                <h4 className="font-bold text-slate-900 mb-4 text-lg leading-tight">{project.name}</h4>
-                <div className="flex items-center gap-4 text-sm text-slate-600 mb-4">
-                  <div className="flex items-center gap-1.5 font-medium">
-                    <FileText className="w-4 h-4 text-slate-500" />
-                    <span>{project.docs}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 font-medium">
-                    <Video className="w-4 h-4 text-slate-500" />
-                    <span>{project.videos}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 font-medium">
-                    <ImageIcon className="w-4 h-4 text-slate-500" />
-                    <span>{project.images}</span>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+          </div>
+        ) : projects.length === 0 ? (
+          <div className="text-center py-20">
+            <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Plus className="w-8 h-8 text-slate-400" />
+            </div>
+            <h3 className="text-xl font-semibold text-slate-900 mb-2">No projects yet</h3>
+            <p className="text-slate-600 mb-6">Create your first project to get started</p>
+            <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+              <DialogTrigger asChild>
+                <Button className="bg-indigo-600 hover:bg-indigo-700">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create First Project
+                </Button>
+              </DialogTrigger>
+            </Dialog>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {projects.map((project) => (
+              <Card
+                key={project.id}
+                className="overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer rounded-2xl border-0 shadow-sm bg-white hover:scale-[1.02] group"
+                onClick={() => onOpenProject(project.id)}
+              >
+                <div className="aspect-video bg-gradient-to-br from-slate-100 to-slate-200 relative overflow-hidden">
+                  {project.thumbnail ? (
+                    <img
+                      src={project.thumbnail}
+                      alt={project.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <div className="text-center">
+                        <div className="w-12 h-12 bg-white/50 rounded-full flex items-center justify-center mx-auto mb-2">
+                          <FileText className="w-6 h-6 text-slate-400" />
+                        </div>
+                        <p className="text-sm text-slate-500 font-medium">No preview</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="p-6">
+                  <h4 className="font-bold text-slate-900 mb-2 text-lg leading-tight">{project.name}</h4>
+                  {project.description && (
+                    <p className="text-sm text-slate-600 mb-4 line-clamp-2">{project.description}</p>
+                  )}
+                  <div className="flex items-center gap-1.5 text-sm text-slate-500 font-medium">
+                    <Clock className="w-4 h-4" />
+                    <span>Updated {formatRelativeTime(project.updated_at)}</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 text-sm text-slate-500 font-medium">
-                  <Clock className="w-4 h-4" />
-                  <span>Updated {project.updatedAt}</span>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
+              </Card>
+            ))}
+          </div>
+        )}
       </section>
     </div>
   )

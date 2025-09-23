@@ -1,11 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Save, Loader2 } from "lucide-react"
 import ReactFlowContextLibrary from "./ReactFlowContextLibrary"
 import ReactFlowCanvas from "./ReactFlowCanvas"
 import { useProjectStore } from "@/stores/useProjectStore"
+import { useProjectContext } from "@/app/providers/ProjectProvider"
+import { Badge } from "@/components/ui/badge"
 
 interface CanvasProps {
   projectId: string
@@ -14,7 +16,14 @@ interface CanvasProps {
 
 export default function Canvas({ projectId, onBackToDashboard }: CanvasProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const { currentProject } = useProjectStore()
+  const { currentProject, loadProject, saveStatus, isLoading, saveNow } = useProjectContext()
+  
+  // Load project on mount
+  useEffect(() => {
+    if (projectId) {
+      loadProject(projectId)
+    }
+  }, [projectId])
 
   // All legacy canvas logic removed - now using pure React Flow
 
@@ -39,18 +48,55 @@ export default function Canvas({ projectId, onBackToDashboard }: CanvasProps) {
               <h1 className="text-lg font-semibold text-gray-900">{currentProject?.name || "Untitled Project"}</h1>
             </div>
             <div className="flex items-center space-x-2">
-              <div className="flex items-center space-x-2 bg-green-50 border border-green-200 rounded-lg px-3 py-1">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-sm text-green-700 font-medium">React Flow Active</span>
-              </div>
-              <span className="text-sm text-gray-600">Auto-saved</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={saveNow}
+                disabled={saveStatus === 'saving'}
+                className="flex items-center space-x-2"
+              >
+                {saveStatus === 'saving' ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Save className="w-3 h-3" />
+                )}
+                <span>Save</span>
+              </Button>
+              
+              {saveStatus === 'saving' && (
+                <Badge variant="secondary" className="animate-pulse">
+                  Saving...
+                </Badge>
+              )}
+              {saveStatus === 'saved' && (
+                <Badge variant="outline" className="text-green-600 border-green-200">
+                  Saved
+                </Badge>
+              )}
+              {saveStatus === 'error' && (
+                <Badge variant="destructive">
+                  Save failed
+                </Badge>
+              )}
+              {saveStatus === 'idle' && (
+                <span className="text-sm text-gray-600">Auto-save enabled</span>
+              )}
             </div>
           </div>
         </header>
 
         {/* Pure React Flow Canvas */}
         <div className="absolute inset-0 top-16">
-          <ReactFlowCanvas projectId={projectId} />
+          {isLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mx-auto mb-4" />
+                <p className="text-gray-600">Loading project...</p>
+              </div>
+            </div>
+          ) : (
+            <ReactFlowCanvas projectId={projectId} />
+          )}
         </div>
       </div>
     </div>

@@ -1,11 +1,12 @@
 import { create } from 'zustand'
-import { Node, Edge, addEdge, Connection } from '@xyflow/react'
+import { Node, Edge, addEdge, Connection, Viewport } from '@xyflow/react'
 import { ChatNodeData, ContextNodeData } from '@/types/reactFlowTypes'
 
 export interface ReactFlowStore {
   // State
   nodes: Node[]
   edges: Edge[]
+  viewport: Viewport
   
   // Node management
   addChatNode: (position?: { x: number; y: number }) => void
@@ -22,6 +23,12 @@ export interface ReactFlowStore {
   setEdges: (edges: Edge[]) => void
   resetCanvas: () => void
   
+  // Viewport
+  setViewport: (viewport: Viewport) => void
+  
+  // Hydration
+  hydrate: (state: { nodes: Node[], edges: Edge[], viewport: Viewport }) => void
+  
   // Connection handling
   onConnect: (connection: Connection) => void
 }
@@ -32,6 +39,7 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
   // Initialize with empty arrays - nodes can be added via UI
   nodes: [],
   edges: [],
+  viewport: { x: 0, y: 0, zoom: 1 },
   
   addChatNode: (position = { x: 250, y: 100 }) => {
     const id = `chat-node-${nodeIdCounter++}`
@@ -113,7 +121,15 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
   },
   
   resetCanvas: () => {
-    set({ nodes: [], edges: [] })
+    set({ nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } })
+  },
+  
+  setViewport: (viewport) => {
+    set({ viewport })
+  },
+  
+  hydrate: ({ nodes, edges, viewport }) => {
+    set({ nodes, edges, viewport })
   },
   
   onConnect: (connection) => {
