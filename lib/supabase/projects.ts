@@ -4,20 +4,27 @@ import { Node, Edge, Viewport } from '@xyflow/react'
 
 // Clean nodes for persistence (remove temporary UI state)
 export const cleanNodesForPersistence = (nodes: Node[]): PersistedNode[] => {
-  return nodes.map(({ id, type, position, data }) => ({
-    id,
-    type: type as 'chatNode' | 'contextNode',
-    position,
-    data: {
-      width: data.width || 400,
-      height: data.height || 280,
-      isMinimized: data.isMinimized || false,
-      zIndex: data.zIndex || 1,
-      contextType: data.contextType || data.type,
-      content: data.content || {},
-      messages: data.messages || []
+  return nodes.map(({ id, type, position, data }) => {
+    // Determine context type for context nodes
+    const contextType = type === 'contextNode' 
+      ? (data.contextType || data.type) as ('ai-chat' | 'video' | 'image' | 'text' | 'website' | 'document')
+      : undefined
+    
+    return {
+      id,
+      type: type as 'chatNode' | 'contextNode',
+      position,
+      data: {
+        width: typeof data.width === 'number' ? data.width : 400,
+        height: typeof data.height === 'number' ? data.height : 280,
+        isMinimized: typeof data.isMinimized === 'boolean' ? data.isMinimized : false,
+        zIndex: typeof data.zIndex === 'number' ? data.zIndex : 1,
+        contextType,
+        content: data.content || undefined,
+        messages: Array.isArray(data.messages) ? data.messages : undefined
+      }
     }
-  }))
+  })
 }
 
 // Clean edges for persistence

@@ -40,38 +40,158 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.439 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.269 0 0);
-  --sidebar-ring: oklch(0.439 0 0);
+  /* NeoBase Core Colors */
+  --background: oklch(0 0 0);                    /* Pure black */
+  --foreground: oklch(1 0 0);                    /* Pure white */
+  --card: oklch(0 0 0);                          /* Black cards */
+  --card-foreground: oklch(1 0 0);               /* White card text */
+  --popover: oklch(0 0 0);                       /* Black popover */
+  --popover-foreground: oklch(1 0 0);            /* White popover text */
+  
+  /* NeoBase Brand Colors */
+  --primary: oklch(0.695 0.231 301.685);         /* purple-500 #a855f7 */
+  --primary-foreground: oklch(1 0 0);            /* White on purple */
+  --secondary: oklch(0.811 0.133 195.929);       /* cyan-400 #22d3ee */
+  --secondary-foreground: oklch(0 0 0);          /* Black on cyan */
+  
+  /* Surfaces & Interactions */
+  --muted: oklch(0.15 0 0);                      /* Very dark gray */
+  --muted-foreground: oklch(0.7 0 0);            /* Light gray text */
+  --accent: oklch(0.695 0.231 301.685);          /* Purple accent */
+  --accent-foreground: oklch(1 0 0);             /* White on accent */
+  
+  /* Borders & Inputs */
+  --border: oklch(0.2 0 0);                      /* Dark border */
+  --input: oklch(0.1 0 0);                       /* Very dark input */
+  --ring: oklch(0.695 0.231 301.685);            /* Purple focus ring */
+  
+  /* Status Colors */
+  --destructive: oklch(0.577 0.245 27.325);      /* Red for errors */
+  --destructive-foreground: oklch(1 0 0);        /* White on red */
+  
+  /* Charts - NeoBase neon palette */
+  --chart-1: oklch(0.695 0.231 301.685);         /* Purple */
+  --chart-2: oklch(0.811 0.133 195.929);         /* Cyan */
+  --chart-3: oklch(0.637 0.23 259.809);          /* Blue */
+  --chart-4: oklch(0.647 0.174 142.717);         /* Emerald */
+  --chart-5: oklch(0.772 0.183 86.929);          /* Yellow */
+  
+  /* Sidebar Colors */
+  --sidebar: oklch(0 0 0);                       /* Black sidebar */
+  --sidebar-foreground: oklch(1 0 0);            /* White text */
+  --sidebar-primary: oklch(0.695 0.231 301.685); /* Purple primary */
+  --sidebar-primary-foreground: oklch(1 0 0);    /* White on purple */
+  --sidebar-accent: oklch(0.15 0 0);             /* Dark accent */
+  --sidebar-accent-foreground: oklch(0.9 0 0);   /* Light accent text */
+  --sidebar-border: oklch(0.2 0 0);              /* Dark border */
+  --sidebar-ring: oklch(0.695 0.231 301.685);    /* Purple ring */
+}
+
+/* NeoBase Cyberpunk Animations */
+@keyframes neon-pulse {
+  0%, 100% { 
+    opacity: 0.7; 
+    filter: brightness(1); 
+  }
+  50% { 
+    opacity: 1; 
+    filter: brightness(1.3); 
+  }
+}
+
+@keyframes ethereal-float {
+  0%, 100% { 
+    transform: translateY(0px); 
+  }
+  50% { 
+    transform: translateY(-8px); 
+  }
+}
+
+@keyframes neon-flicker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+
+/* NeoBase Utility Classes */
+.animate-neon-pulse { 
+  animation: neon-pulse 2s ease-in-out infinite; 
+}
+
+.animate-float { 
+  animation: ethereal-float 6s ease-in-out infinite; 
+}
+
+.animate-neon-flicker { 
+  animation: neon-flicker 1.5s ease-in-out infinite; 
+}
+
+/* Glassmorphism Base */
+.glass-card {
+  backdrop-filter: blur(16px);
+  background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(0,0,0,0.3));
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 10px 30px -15px rgba(0,0,0,0.7);
+}
+
+.glass-card-purple {
+  backdrop-filter: blur(16px);
+  background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(0,0,0,0.3));
+  border: 1px solid rgba(168,85,247,0.3);
+  box-shadow: 0 10px 30px -15px rgba(0,0,0,0.7);
+  position: relative;
+}
+
+.glass-card-purple::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #a855f7;
+  box-shadow: 0 0 20px 5px rgba(168,85,247,0.7);
+  border-radius: 4px 4px 0 0;
+}
+
+/* Neon Glow Utilities */
+.glow-purple {
+  box-shadow: 0 0 15px rgba(168,85,247,0.7);
+}
+
+.glow-cyan {
+  box-shadow: 0 0 15px rgba(34,211,238,0.7);
+}
+
+.glow-blue {
+  box-shadow: 0 0 15px rgba(59,130,246,0.7);
+}
+
+.glow-double {
+  box-shadow: 
+    0 0 25px rgba(59,130,246,0.8),
+    0 0 15px rgba(168,85,247,0.7);
+}
+
+/* Dark Mode Scrollbar */
+.dark ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.05);
+  border-radius: 3px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(168,85,247,0.6);
+  border-radius: 3px;
+  transition: background 0.2s ease;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(168,85,247,0.8);
 }
 
 @theme inline {

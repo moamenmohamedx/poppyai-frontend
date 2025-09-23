@@ -31,58 +31,70 @@ export interface ReactFlowStore {
   
   // Connection handling
   onConnect: (connection: Connection) => void
-}
 
-let nodeIdCounter = 1
+  // Internal counters
+  chatNodeCount: number
+  contextNodeCount: number
+}
 
 export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
   // Initialize with empty arrays - nodes can be added via UI
   nodes: [],
   edges: [],
   viewport: { x: 0, y: 0, zoom: 1 },
+  chatNodeCount: 0,
+  contextNodeCount: 0,
   
   addChatNode: (position = { x: 250, y: 100 }) => {
-    const id = `chat-node-${nodeIdCounter++}`
-    const newNode: Node<ChatNodeData> = {
-      id,
-      type: 'chatNode',
-      position,
-      data: {
+    set(state => {
+      const newCount = state.chatNodeCount + 1
+      const id = `chat-node-${newCount}`
+      const newNode: Node<ChatNodeData> = {
         id,
-        width: 400,
-        height: 280,
-        isMinimized: false,
-        zIndex: 1,
-        projectId: 'current-project' // This should come from context
+        type: 'chatNode',
+        position,
+        data: {
+          id,
+          width: 400,
+          height: 280,
+          isMinimized: false,
+          zIndex: 1,
+          projectId: 'current-project' // This should come from context
+        }
       }
-    }
-    
-    set(state => ({
-      nodes: [...state.nodes, newNode]
-    }))
+      
+      return {
+        nodes: [...state.nodes, newNode],
+        chatNodeCount: newCount
+      }
+    })
   },
   
   addContextNode: (type, position = { x: 100, y: 100 }) => {
-    const id = `context-node-${nodeIdCounter++}`
-    const newNode: Node<ContextNodeData> = {
-      id,
-      type: 'contextNode', 
-      position,
-      data: {
+    set(state => {
+      const newCount = state.contextNodeCount + 1
+      const id = `context-node-${newCount}`
+      const newNode: Node<ContextNodeData> = {
         id,
-        width: 400,
-        height: 280,
-        isMinimized: false,
-        zIndex: 1,
-        type,
-        content: {},
-        projectId: 'current-project' // This should come from context
+        type: 'contextNode', 
+        position,
+        data: {
+          id,
+          width: 400,
+          height: 280,
+          isMinimized: false,
+          zIndex: 1,
+          type,
+          content: {},
+          projectId: 'current-project' // This should come from context
+        }
       }
-    }
-    
-    set(state => ({
-      nodes: [...state.nodes, newNode]
-    }))
+      
+      return {
+        nodes: [...state.nodes, newNode],
+        contextNodeCount: newCount
+      }
+    })
   },
   
   updateNode: (id, updates) => {
@@ -121,7 +133,7 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
   },
   
   resetCanvas: () => {
-    set({ nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } })
+    set({ nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 }, chatNodeCount: 0, contextNodeCount: 0 })
   },
   
   setViewport: (viewport) => {
@@ -129,7 +141,21 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
   },
   
   hydrate: ({ nodes, edges, viewport }) => {
-    set({ nodes, edges, viewport })
+    // When loading a saved state, we need to correctly set the counters
+    // to avoid future ID collisions. We'll parse the highest existing ID number.
+    let maxChatId = 0
+    let maxContextId = 0
+    nodes.forEach(node => {
+      if (node.id.startsWith('chat-node-')) {
+        const num = parseInt(node.id.split('-')[2], 10)
+        if (num > maxChatId) maxChatId = num
+      } else if (node.id.startsWith('context-node-')) {
+        const num = parseInt(node.id.split('-')[2], 10)
+        if (num > maxContextId) maxContextId = num
+      }
+    })
+    
+    set({ nodes, edges, viewport, chatNodeCount: maxChatId, contextNodeCount: maxContextId })
   },
   
   onConnect: (connection) => {

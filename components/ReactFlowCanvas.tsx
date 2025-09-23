@@ -90,10 +90,11 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
         type: 'smoothstep',
         animated: true,
         style: {
-          stroke: '#6366f1',
+          stroke: '#a855f7',
           strokeWidth: 2,
           strokeDasharray: '5,5'
-        }
+        }, 
+        className: 'dark:stroke-purple-500'
       }
       
       const updatedEdges = addEdge(newEdge, edges)
@@ -212,7 +213,7 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
         nodeTypes={nodeTypes}
         defaultViewport={viewport}
         fitView={false}
-        className="bg-gray-50"
+        className="bg-gray-50 dark:bg-black"
         deleteKeyCode={["Backspace", "Delete"]}
         multiSelectionKeyCode={["Meta", "Ctrl"]}
         onDragOver={handleDragOver}
@@ -225,6 +226,7 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
           gap={20}
           size={1}
           color="#d1d5db"
+          className="dark:bg-pattern-black"
         />
         
         <Controls 
@@ -237,15 +239,16 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
         <MiniMap 
           position="bottom-right"
           nodeColor={(node) => {
-            return node.type === 'chatNode' ? '#6366f1' : '#10b981'
+            return node.type === 'chatNode' ? '#a855f7' : '#22d3ee'
           }}
           pannable
           zoomable
+          className="dark:!bg-black/80 dark:!border-purple-500/30"
         />
 
         {/* Canvas Actions Panel - Top Right */}
         <Panel position="top-right" className="space-y-2">
-          <div className="bg-white p-2 rounded-lg shadow-lg border border-gray-200">
+          <div className="bg-white dark:bg-black/80 p-2 rounded-lg shadow-lg dark:shadow-[0_0_20px_rgba(168,85,247,0.3)] border border-gray-200 dark:border-purple-500/30">
             <div className="flex flex-col space-y-2">
               {/* Add Nodes Row */}
               <div className="flex space-x-2">
@@ -253,7 +256,7 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
                   onClick={() => addNodeAtCenter('chat')}
                   variant="outline"
                   size="sm"
-                  className="text-xs"
+                  className="text-xs dark:border-purple-500/30 dark:hover:bg-purple-500/20 dark:text-purple-300"
                 >
                   <MessageSquare className="w-3 h-3 mr-1" />
                   Add Chat
@@ -263,7 +266,7 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
                   onClick={() => addNodeAtCenter('context', 'text')}
                   variant="outline"
                   size="sm"
-                  className="text-xs"
+                  className="text-xs dark:border-purple-500/30 dark:hover:bg-purple-500/20 dark:text-purple-300"
                 >
                   <FileText className="w-3 h-3 mr-1" />
                   Add Context
@@ -276,7 +279,7 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
                   onClick={resetCanvas}
                   variant="outline"
                   size="sm"
-                  className="text-xs"
+                  className="text-xs dark:border-purple-500/30 dark:hover:bg-purple-500/20 dark:text-purple-300"
                 >
                   <RotateCcw className="w-3 h-3 mr-1" />
                   Reset
@@ -286,7 +289,7 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
                   onClick={handleDeleteSelected}
                   variant="outline"
                   size="sm"
-                  className="text-xs text-red-600 hover:text-red-700"
+                  className="text-xs text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 dark:border-red-500/30 dark:hover:bg-red-500/20"
                 >
                   <Trash2 className="w-3 h-3 mr-1" />
                   Delete
@@ -298,11 +301,11 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
 
         {/* Status Panel */}
         <Panel position="top-left">
-          <div className="bg-white px-3 py-2 rounded-lg shadow-md border border-gray-200">
-            <div className="text-sm font-medium text-green-600">
+          <div className="bg-white dark:bg-black/80 px-3 py-2 rounded-lg shadow-md dark:shadow-[0_0_20px_rgba(168,85,247,0.3)] border border-gray-200 dark:border-purple-500/30">
+            <div className="text-sm font-medium text-green-600 dark:text-cyan-400">
               ✓ React Flow Canvas
             </div>
-            <div className="text-xs text-gray-500 mt-1">
+            <div className="text-xs text-gray-500 dark:text-purple-400/60 mt-1">
               Nodes: {nodes.length} | Edges: {edges.length}
             </div>
           </div>
@@ -311,13 +314,13 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
 
       {/* File Drop Overlay */}
       {isDragOverCanvas && (
-        <div className="absolute inset-0 bg-indigo-500 bg-opacity-10 border-4 border-dashed border-indigo-500 flex items-center justify-center z-50 pointer-events-none">
-          <div className="bg-white rounded-xl p-8 shadow-lg text-center">
-            <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Plus className="w-8 h-8 text-indigo-600" />
+        <div className="absolute inset-0 bg-indigo-500 dark:bg-purple-500 bg-opacity-10 dark:bg-opacity-20 border-4 border-dashed border-indigo-500 dark:border-purple-500 flex items-center justify-center z-50 pointer-events-none">
+          <div className="bg-white dark:bg-black/90 rounded-xl p-8 shadow-lg dark:shadow-[0_0_30px_rgba(168,85,247,0.5)] text-center dark:border dark:border-purple-500/30">
+            <div className="w-16 h-16 bg-indigo-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center mx-auto mb-4 dark:border dark:border-purple-500/30">
+              <Plus className="w-8 h-8 text-indigo-600 dark:text-purple-400" />
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Drop files to create nodes</h3>
-            <p className="text-gray-600">Images, videos, and documents will become context nodes</p>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Drop files to create nodes</h3>
+            <p className="text-gray-600 dark:text-purple-300/70">Images, videos, and documents will become context nodes</p>
           </div>
         </div>
       )}

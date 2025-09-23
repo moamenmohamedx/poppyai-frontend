@@ -30,48 +30,48 @@ const cardTypes = [
     icon: MessageSquare,
     title: "AI Chat",
     description: "Start a new conversation",
-    color: "text-purple-600 bg-purple-50 border-purple-200",
-    hoverColor: "hover:bg-purple-100",
+    color: "text-purple-600 bg-purple-50 border-purple-200 dark:text-purple-400 dark:bg-purple-900/30 dark:border-purple-500/30",
+    hoverColor: "hover:bg-purple-100 dark:hover:bg-purple-900/50",
   },
   {
     type: "video" as const,
     icon: Video,
     title: "Video Link",
     description: "Add YouTube or video URL",
-    color: "text-red-600 bg-red-50 border-red-200",
-    hoverColor: "hover:bg-red-100",
+    color: "text-red-600 bg-red-50 border-red-200 dark:text-red-400 dark:bg-red-900/30 dark:border-red-500/30",
+    hoverColor: "hover:bg-red-100 dark:hover:bg-red-900/50",
   },
   {
     type: "image" as const,
     icon: ImageIcon,
     title: "Image",
     description: "Upload or link an image",
-    color: "text-green-600 bg-green-50 border-green-200",
-    hoverColor: "hover:bg-green-100",
+    color: "text-green-600 bg-green-50 border-green-200 dark:text-green-400 dark:bg-green-900/30 dark:border-green-500/30",
+    hoverColor: "hover:bg-green-100 dark:hover:bg-green-900/50",
   },
   {
     type: "text" as const,
     icon: FileText,
     title: "Text Note",
     description: "Create a text note",
-    color: "text-blue-600 bg-blue-50 border-blue-200",
-    hoverColor: "hover:bg-blue-100",
+    color: "text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-900/30 dark:border-blue-500/30",
+    hoverColor: "hover:bg-blue-100 dark:hover:bg-blue-900/50",
   },
   {
     type: "website" as const,
     icon: Globe,
     title: "Website",
     description: "Add a website URL",
-    color: "text-orange-600 bg-orange-50 border-orange-200",
-    hoverColor: "hover:bg-orange-100",
+    color: "text-orange-600 bg-orange-50 border-orange-200 dark:text-orange-400 dark:bg-orange-900/30 dark:border-orange-500/30",
+    hoverColor: "hover:bg-orange-100 dark:hover:bg-orange-900/50",
   },
   {
     type: "document" as const,
     icon: File,
     title: "Document",
     description: "Upload a document",
-    color: "text-indigo-600 bg-indigo-50 border-indigo-200",
-    hoverColor: "hover:bg-indigo-100",
+    color: "text-indigo-600 bg-indigo-50 border-indigo-200 dark:text-indigo-400 dark:bg-indigo-900/30 dark:border-indigo-500/30",
+    hoverColor: "hover:bg-indigo-100 dark:hover:bg-indigo-900/50",
   },
 ]
 
@@ -106,8 +106,8 @@ export default function ReactFlowContextLibrary({ projectId, onToggleCollapse, i
 
   if (isCollapsed) {
     return (
-      <div className="w-12 bg-white border-r border-gray-200 flex flex-col items-center py-4">
-        <Button variant="ghost" size="sm" onClick={onToggleCollapse} className="mb-4">
+      <div className="w-12 bg-white dark:bg-black border-r border-gray-200 dark:border-white/10 flex flex-col items-center py-4 transition-colors">
+        <Button variant="ghost" size="sm" onClick={onToggleCollapse} className="mb-4 dark:hover:bg-white/10 dark:text-purple-400">
           <ChevronRight className="w-4 h-4" />
         </Button>
       </div>
@@ -115,24 +115,24 @@ export default function ReactFlowContextLibrary({ projectId, onToggleCollapse, i
   }
 
   return (
-    <div className="w-80 bg-white border-r border-gray-200 flex flex-col h-full">
+    <div className="w-80 bg-white dark:bg-black border-r border-gray-200 dark:border-white/10 flex flex-col h-full transition-colors">
       {/* Header */}
-      <div className="p-4 border-b border-gray-200">
+      <div className="p-4 border-b border-gray-200 dark:border-white/10">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-gray-900">Add Nodes</h2>
-          <Button variant="ghost" size="sm" onClick={onToggleCollapse}>
+          <h2 className="font-semibold text-gray-900 dark:text-white">Add Nodes</h2>
+          <Button variant="ghost" size="sm" onClick={onToggleCollapse} className="dark:hover:bg-white/10 dark:text-purple-400">
             <ChevronLeft className="w-4 h-4" />
           </Button>
         </div>
 
         {/* Search */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-purple-400" />
           <Input
             placeholder="Search node types..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 rounded-lg"
+            className="pl-10 rounded-lg dark:bg-black/50 dark:border-purple-500/30 dark:text-purple-200 dark:placeholder-purple-400/50"
           />
         </div>
       </div>
@@ -145,7 +145,7 @@ export default function ReactFlowContextLibrary({ projectId, onToggleCollapse, i
             return (
               <Card
                 key={cardType.type}
-                className={`p-4 cursor-pointer transition-all duration-200 border-2 ${cardType.color} ${cardType.hoverColor} hover:shadow-md hover:scale-105`}
+                className={`p-4 cursor-pointer transition-all duration-200 border-2 ${cardType.color} ${cardType.hoverColor} hover:shadow-md dark:hover:shadow-[0_0_20px_rgba(168,85,247,0.3)] hover:scale-105`}
                 onClick={() => handleAddCard(cardType)}
               >
                 <div className="text-center">
@@ -165,15 +165,15 @@ export default function ReactFlowContextLibrary({ projectId, onToggleCollapse, i
 
         {filteredCardTypes.length === 0 && (
           <div className="text-center py-8">
-            <Search className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-            <p className="text-sm text-gray-500">No node types found</p>
+            <Search className="w-8 h-8 text-gray-400 dark:text-purple-400 mx-auto mb-2" />
+            <p className="text-sm text-gray-500 dark:text-purple-400/70">No node types found</p>
           </div>
         )}
 
         {/* Instructions */}
-        <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-          <h4 className="font-medium text-sm text-gray-900 mb-2">How to use:</h4>
-          <ul className="text-xs text-gray-600 space-y-1">
+        <div className="mt-6 p-4 bg-gray-50 dark:bg-purple-900/20 rounded-lg dark:border dark:border-purple-500/20">
+          <h4 className="font-medium text-sm text-gray-900 dark:text-purple-300 mb-2">How to use:</h4>
+          <ul className="text-xs text-gray-600 dark:text-purple-400/70 space-y-1">
             <li>• Click any node type to add it to canvas</li>
             <li>• Drag nodes around to organize them</li>
             <li>• Connect context nodes to chat nodes</li>
