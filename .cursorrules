@@ -1,0 +1,99 @@
+# 🎯 Frontend Cursor Rules - AI Context Organizer
+
+## 🚨 BEFORE ANY EDIT
+1. **Check NeoBase MCP first** → `mcp_neobase_session_info` + `mcp_neobase_perform_rag_query`
+2. **If no context found, use web search** → Always include "September 2025" or current date for latest info
+3. **Read the file** completely before editing
+4. **Follow existing patterns** in the codebase
+
+## 📦 Tech Stack
+- **Next.js 15** + **React 19** + **TypeScript 5**
+- **React Flow 12.8.5** for canvas
+- **Zustand** for state
+- **shadcn/ui** + **Tailwind CSS**
+- **React Hook Form** + **Zod**
+
+## 🎨 Component Template
+```tsx
+"use client"
+
+import { memo } from 'react'
+import { Button } from '@/components/ui/button'
+
+interface Props {
+  title: string
+}
+
+function ComponentName({ title }: Props) {
+  return (
+    <div className="p-4 bg-white rounded-lg">
+      <h2>{title}</h2>
+    </div>
+  )
+}
+
+export default memo(ComponentName)
+```
+
+## 🏪 Zustand Store Template
+```typescript
+import { create } from 'zustand'
+
+interface Store {
+  items: Item[]
+  addItem: (item: Item) => void
+}
+
+export const useStore = create<Store>((set) => ({
+  items: [],
+  addItem: (item) => set((state) => ({ 
+    items: [...state.items, item] 
+  }))
+}))
+```
+
+## 🎯 React Flow Node Template
+```tsx
+import { memo } from 'react'
+import { NodeProps, Handle, Position } from '@xyflow/react'
+
+function CustomNode({ data, selected }: NodeProps) {
+  return (
+    <div className={selected ? 'ring-2 ring-indigo-500' : ''}>
+      <Handle type="target" position={Position.Left} />
+      {/* Content */}
+      <Handle type="source" position={Position.Right} />
+    </div>
+  )
+}
+
+export default memo(CustomNode)
+```
+
+## ✅ DO THIS
+- Use TypeScript for everything
+- Memo components with props
+- Use Tailwind classes only
+- Import order: React → Libraries → UI → Custom → Types
+- Colors: `indigo-600` (primary), `green-500` (success), `slate-*` (neutral)
+
+
+
+## 🔧 Quick Patterns
+```tsx
+// Loading
+if (isLoading) return <Skeleton className="h-64 w-full" />
+
+// Error
+if (error) return <div className="p-4 bg-red-50 text-red-800">{error.message}</div>
+
+// Toast
+import { toast } from "sonner"
+toast.success("Saved!")
+```
+
+## 📌 Remember
+- **80/20 rule** - simple solutions 
+- **Clear explanations** 
+- **Tailwind only** 
+- **Always check NeoBase first**
