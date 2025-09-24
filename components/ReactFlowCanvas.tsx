@@ -21,7 +21,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { Button } from '@/components/ui/button'
-import { Plus, MessageSquare, FileText, Video, ImageIcon, Globe, File, RotateCcw, Trash2 } from 'lucide-react'
+import { Plus, Video, ImageIcon, Globe, File } from 'lucide-react'
 
 import ChatNode from './nodes/ChatNode'
 import ContextNode from './nodes/ContextNode'
@@ -246,58 +246,6 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
           className="dark:!bg-black/80 dark:!border-purple-500/30"
         />
 
-        {/* Canvas Actions Panel - Top Right */}
-        <Panel position="top-right" className="space-y-2">
-          <div className="bg-white dark:bg-black/80 p-2 rounded-lg shadow-lg dark:shadow-[0_0_20px_rgba(168,85,247,0.3)] border border-gray-200 dark:border-purple-500/30">
-            <div className="flex flex-col space-y-2">
-              {/* Add Nodes Row */}
-              <div className="flex space-x-2">
-                <Button
-                  onClick={() => addNodeAtCenter('chat')}
-                  variant="outline"
-                  size="sm"
-                  className="text-xs dark:border-purple-500/30 dark:hover:bg-purple-500/20 dark:text-purple-300"
-                >
-                  <MessageSquare className="w-3 h-3 mr-1" />
-                  Add Chat
-                </Button>
-                
-                <Button
-                  onClick={() => addNodeAtCenter('context', 'text')}
-                  variant="outline"
-                  size="sm"
-                  className="text-xs dark:border-purple-500/30 dark:hover:bg-purple-500/20 dark:text-purple-300"
-                >
-                  <FileText className="w-3 h-3 mr-1" />
-                  Add Context
-                </Button>
-              </div>
-              
-              {/* Action Row */}
-              <div className="flex space-x-2">
-                <Button
-                  onClick={resetCanvas}
-                  variant="outline"
-                  size="sm"
-                  className="text-xs dark:border-purple-500/30 dark:hover:bg-purple-500/20 dark:text-purple-300"
-                >
-                  <RotateCcw className="w-3 h-3 mr-1" />
-                  Reset
-                </Button>
-                
-                <Button
-                  onClick={handleDeleteSelected}
-                  variant="outline"
-                  size="sm"
-                  className="text-xs text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 dark:border-red-500/30 dark:hover:bg-red-500/20"
-                >
-                  <Trash2 className="w-3 h-3 mr-1" />
-                  Delete
-                </Button>
-              </div>
-            </div>
-          </div>
-        </Panel>
 
         {/* Status Panel */}
         <Panel position="top-left">

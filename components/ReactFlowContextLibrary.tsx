@@ -106,21 +106,57 @@ export default function ReactFlowContextLibrary({ projectId, onToggleCollapse, i
 
   if (isCollapsed) {
     return (
-      <div className="w-12 bg-white dark:bg-black border-r border-gray-200 dark:border-white/10 flex flex-col items-center py-4 transition-colors">
-        <Button variant="ghost" size="sm" onClick={onToggleCollapse} className="mb-4 dark:hover:bg-white/10 dark:text-purple-400">
-          <ChevronRight className="w-4 h-4" />
+      <div className="relative w-16 h-full bg-white dark:bg-black border-r border-gray-200 dark:border-white/10 flex flex-col items-center justify-center transition-all">
+        <Button 
+          variant="default" 
+          size="default" 
+          onClick={onToggleCollapse} 
+          className="bg-indigo-600 hover:bg-indigo-700 dark:bg-purple-600 dark:hover:bg-purple-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 dark:shadow-[0_0_20px_rgba(168,85,247,0.6)] dark:hover:shadow-[0_0_30px_rgba(168,85,247,0.8)]"
+          title="Expand sidebar"
+          aria-label="Expand context library sidebar"
+          aria-expanded="false"
+          tabIndex={0}
+        >
+          <ChevronRight className="w-5 h-5" />
         </Button>
+        
+        {/* Visual indicator - above button */}
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none">
+          <div className="absolute -top-12 left-1/2 transform -translate-x-1/2">
+            <div className="w-1 h-8 bg-gradient-to-b from-transparent via-indigo-600/50 to-transparent dark:via-purple-600/50 rounded-full animate-pulse" />
+          </div>
+          
+          {/* Visual indicator - below button */}
+          <div className="absolute top-12 left-1/2 transform -translate-x-1/2">
+            <div className="w-1 h-8 bg-gradient-to-t from-transparent via-indigo-600/50 to-transparent dark:via-purple-600/50 rounded-full animate-pulse" />
+          </div>
+        </div>
+        
+        {/* Tooltip hint */}
+        <div className="absolute left-full ml-2 opacity-0 hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+          <div className="bg-gray-900 dark:bg-purple-900 text-white text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap">
+            Click to expand
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="w-80 bg-white dark:bg-black border-r border-gray-200 dark:border-white/10 flex flex-col h-full transition-colors">
+    <div className="w-80 bg-white dark:bg-black border-r border-gray-200 dark:border-white/10 flex flex-col h-full transition-all duration-300">
       {/* Header */}
       <div className="p-4 border-b border-gray-200 dark:border-white/10">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold text-gray-900 dark:text-white">Add Nodes</h2>
-          <Button variant="ghost" size="sm" onClick={onToggleCollapse} className="dark:hover:bg-white/10 dark:text-purple-400">
+          <Button 
+            variant="outline" 
+            size="default" 
+            onClick={onToggleCollapse} 
+            className="border-gray-300 hover:bg-gray-100 dark:border-purple-500/50 dark:hover:bg-purple-500/20 dark:text-purple-400 transition-all"
+            title="Collapse sidebar"
+            aria-label="Collapse context library sidebar"
+            aria-expanded="true"
+          >
             <ChevronLeft className="w-4 h-4" />
           </Button>
         </div>

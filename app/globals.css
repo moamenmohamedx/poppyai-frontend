@@ -99,6 +99,11 @@
   }
 }
 
+@keyframes bounce-once {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(3px); }
+}
+
 @keyframes ethereal-float {
   0%, 100% { 
     transform: translateY(0px); 
@@ -124,6 +129,10 @@
 
 .animate-neon-flicker { 
   animation: neon-flicker 1.5s ease-in-out infinite; 
+}
+
+.animate-bounce-once { 
+  animation: bounce-once 0.3s ease-in-out; 
 }
 
 /* Glassmorphism Base */
