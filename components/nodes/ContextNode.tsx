@@ -125,7 +125,8 @@ function ContextNode({ data, selected }: NodeProps) {
         <Handle
           type="target"
           position={Position.Left}
-          className="w-3 h-3 !bg-green-600 dark:!bg-cyan-500 !border-2 !border-white dark:!border-black" 
+          className="!bg-green-600 dark:!bg-cyan-500 !border-white dark:!border-slate-900 dark:handle-glow-cyan dark:handle-glow-cyan-hover"
+          style={{ width: '20px', height: '20px' }}
           isConnectable={true}
         />
         
@@ -165,7 +166,8 @@ function ContextNode({ data, selected }: NodeProps) {
         <Handle
           type="source"
           position={Position.Right}
-          className="w-3 h-3 !bg-green-600 dark:!bg-cyan-500 !border-2 !border-white dark:!border-black"
+          className="!bg-green-600 dark:!bg-cyan-500 !border-white dark:!border-slate-900 dark:handle-glow-cyan dark:handle-glow-cyan-hover"
+          style={{ width: '20px', height: '20px' }}
           isConnectable={true}
         />
       </div>

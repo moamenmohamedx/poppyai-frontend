@@ -96,7 +96,8 @@ function ChatNode({ data, selected }: NodeProps) {
         <Handle
           type="target"
           position={Position.Left}
-          className="w-3 h-3 !bg-indigo-600 dark:!bg-purple-500 !border-2 !border-white dark:!border-black"
+          className="!bg-indigo-600 dark:!bg-purple-500 !border-white dark:!border-slate-900 dark:handle-glow-purple dark:handle-glow-purple-hover"
+          style={{ width: '20px', height: '20px' }}
           isConnectable={true}
         />
         
@@ -143,7 +144,8 @@ function ChatNode({ data, selected }: NodeProps) {
         <Handle
           type="source" 
           position={Position.Right}
-          className="w-3 h-3 !bg-indigo-600 dark:!bg-purple-500 !border-2 !border-white dark:!border-black"
+          className="!bg-indigo-600 dark:!bg-purple-500 !border-white dark:!border-slate-900 dark:handle-glow-purple dark:handle-glow-purple-hover"
+          style={{ width: '20px', height: '20px' }}
           isConnectable={true}
         />
       </div>
