@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { Node, Edge, addEdge, Connection, Viewport } from '@xyflow/react'
 import { ChatNodeData, ContextNodeData } from '@/types/reactFlowTypes'
+import { toast } from 'sonner'
 
 export interface ReactFlowStore {
   // State
@@ -32,6 +33,13 @@ export interface ReactFlowStore {
   // Connection handling
   onConnect: (connection: Connection) => void
 
+  // Clipboard functionality
+  copiedNodes: Node[]
+  copiedEdges: Edge[]
+  copyNodes: (nodes: Node[]) => void
+  pasteNodes: (position: { x: number, y: number }) => void
+  deleteSelectedNodes: () => void
+
   // Internal counters
   chatNodeCount: number
   contextNodeCount: number
@@ -44,6 +52,8 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
   viewport: { x: 0, y: 0, zoom: 1 },
   chatNodeCount: 0,
   contextNodeCount: 0,
+  copiedNodes: [],
+  copiedEdges: [],
   
   addChatNode: (position) => {
     set(state => {
@@ -182,6 +192,113 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
         edges: addEdge(newEdge, state.edges)
       }))
     }
+  },
+
+  copyNodes: (nodesToCopy) => {
+    const { edges } = get()
+    
+    // Find all edges between the selected nodes
+    const nodeIds = nodesToCopy.map(n => n.id)
+    const edgesToCopy = edges.filter(edge => 
+      nodeIds.includes(edge.source) && nodeIds.includes(edge.target)
+    )
+    
+    set({ 
+      copiedNodes: nodesToCopy,
+      copiedEdges: edgesToCopy
+    })
+    
+    toast.success("Copied web content", { 
+      duration: 3000,
+      position: 'top-center'
+    })
+  },
+
+  pasteNodes: (position) => {
+    const { copiedNodes, copiedEdges, chatNodeCount, contextNodeCount } = get()
+    
+    if (copiedNodes.length === 0) return
+    
+    // Calculate offset from first copied node
+    const firstNode = copiedNodes[0]
+    const offsetX = position.x - firstNode.position.x
+    const offsetY = position.y - firstNode.position.y
+    
+    // Create new nodes with new IDs and positions
+    const idMap: Record<string, string> = {}
+    let newChatCount = chatNodeCount
+    let newContextCount = contextNodeCount
+    
+    const newNodes = copiedNodes.map(node => {
+      let newId: string
+      
+      if (node.type === 'chatNode') {
+        newChatCount++
+        newId = `chat-node-${newChatCount}`
+      } else if (node.type === 'contextNode') {
+        newContextCount++
+        newId = `context-node-${newContextCount}`
+      } else {
+        newId = `${node.id}-copy-${Date.now()}`
+      }
+      
+      idMap[node.id] = newId
+      
+      return {
+        ...node,
+        id: newId,
+        position: {
+          x: node.position.x + offsetX,
+          y: node.position.y + offsetY
+        },
+        selected: false,
+        data: {
+          ...node.data,
+          id: newId
+        }
+      }
+    })
+    
+    // Create new edges with mapped IDs
+    const newEdges = copiedEdges.map(edge => ({
+      ...edge,
+      id: `edge-${idMap[edge.source]}-${idMap[edge.target]}`,
+      source: idMap[edge.source],
+      target: idMap[edge.target]
+    }))
+    
+    set(state => ({
+      nodes: [...state.nodes, ...newNodes],
+      edges: [...state.edges, ...newEdges],
+      chatNodeCount: newChatCount,
+      contextNodeCount: newContextCount
+    }))
+    
+    toast.success("Pasted web content", { 
+      duration: 3000,
+      position: 'top-center'
+    })
+  },
+
+  deleteSelectedNodes: () => {
+    const { nodes, edges } = get()
+    const selectedNodes = nodes.filter(node => node.selected)
+    
+    if (selectedNodes.length === 0) return
+    
+    const selectedNodeIds = selectedNodes.map(n => n.id)
+    
+    set(state => ({
+      nodes: state.nodes.filter(node => !selectedNodeIds.includes(node.id)),
+      edges: state.edges.filter(edge => 
+        !selectedNodeIds.includes(edge.source) && !selectedNodeIds.includes(edge.target)
+      )
+    }))
+    
+    toast.success(`Deleted ${selectedNodes.length} node${selectedNodes.length > 1 ? 's' : ''}`, {
+      duration: 3000,
+      position: 'top-center'
+    })
   }
 }))
 

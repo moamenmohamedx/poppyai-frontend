@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useCallback, useState, useRef, useEffect } from 'react'
+import React, { useCallback, useState, useRef, useEffect, useMemo } from 'react'
 import { 
   ReactFlow, 
   Background, 
@@ -21,7 +21,8 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { Button } from '@/components/ui/button'
-import { Plus, Video, ImageIcon, Globe, File } from 'lucide-react'
+import { Plus, Video, ImageIcon, Globe, File, Copy, Clipboard, Trash2 } from 'lucide-react'
+import { useTheme } from 'next-themes'
 
 import ChatNode from './nodes/ChatNode'
 import ContextNode from './nodes/ContextNode'
@@ -31,11 +32,11 @@ interface ReactFlowCanvasProps {
   projectId: string
 }
 
-// Define custom node types
-const nodeTypes = {
-  chatNode: ChatNode,
-  contextNode: ContextNode,
-}
+// Define custom node types - will be updated with context menu handler inside component
+const createNodeTypes = (onContextMenu: (event: MouseEvent | React.MouseEvent) => void) => ({
+  chatNode: (props: any) => <ChatNode {...props} onNodeContextMenu={onContextMenu} />,
+  contextNode: (props: any) => <ContextNode {...props} onNodeContextMenu={onContextMenu} />,
+})
 
 function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
   const { 
@@ -49,12 +50,21 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
     setEdges,
     setViewport,
     onConnect,
-    resetCanvas
+    resetCanvas,
+    copyNodes,
+    pasteNodes,
+    deleteSelectedNodes
   } = useReactFlowStore()
 
   const [isDragOverCanvas, setIsDragOverCanvas] = useState(false)
+  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null)
+  const [lastRightClickPosition, setLastRightClickPosition] = useState<{ x: number; y: number } | null>(null)
+  const [showContextMenu, setShowContextMenu] = useState(false)
+  const [contextMenuScreenPosition, setContextMenuScreenPosition] = useState<{ x: number; y: number } | null>(null)
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const { screenToFlowPosition, setViewport: rfSetViewport } = useReactFlow() // Use the useReactFlow hook
+  const { theme, systemTheme } = useTheme()
+  const currentTheme = theme === 'system' ? systemTheme : theme
   
   // Sync viewport on mount
   useEffect(() => {
@@ -62,6 +72,61 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
       rfSetViewport(viewport)
     }
   }, []) // Only on mount
+
+  // Hide context menu on click outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setShowContextMenu(false)
+    }
+
+    if (showContextMenu) {
+      document.addEventListener('click', handleClickOutside)
+      document.addEventListener('contextmenu', handleClickOutside)
+      return () => {
+        document.removeEventListener('click', handleClickOutside)
+        document.removeEventListener('contextmenu', handleClickOutside)
+      }
+    }
+  }, [showContextMenu])
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Prevent shortcuts when typing in inputs
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return
+      }
+
+      // Copy: Ctrl+C or Cmd+C
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+        e.preventDefault()
+        const selectedNodes = nodes.filter(node => node.selected)
+        if (selectedNodes.length > 0) {
+          copyNodes(selectedNodes)
+        }
+      }
+      
+      // Paste: Ctrl+V or Cmd+V
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+        e.preventDefault()
+        // Use last right-click position or center of viewport
+        const position = lastRightClickPosition || screenToFlowPosition({
+          x: window.innerWidth / 2,
+          y: window.innerHeight / 2
+        })
+        pasteNodes(position)
+      }
+      
+      // Delete: Delete or Backspace
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault()
+        deleteSelectedNodes()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [nodes, lastRightClickPosition, screenToFlowPosition, copyNodes, pasteNodes, deleteSelectedNodes])
 
 
   // Handle node changes directly in the store
@@ -190,19 +255,70 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
     }
   }, [screenToFlowPosition, addContextNode])
 
-  // Delete selected nodes
-  const handleDeleteSelected = useCallback(() => {
-    const selectedNodes = nodes.filter(node => node.selected)
-    selectedNodes.forEach(node => deleteNode(node.id))
-  }, [nodes, deleteNode])
   
   // Handle viewport changes
   const handleViewportChange = useCallback((newViewport: Viewport) => {
     setViewport(newViewport)
   }, [setViewport])
 
+  // Handle context menu (works for both pane and nodes)
+  const handleContextMenu = useCallback((event: MouseEvent | React.MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    
+    const flowPosition = screenToFlowPosition({
+      x: event.clientX,
+      y: event.clientY
+    })
+    setContextMenuPosition(flowPosition)
+    setLastRightClickPosition(flowPosition)
+    
+    // Show custom context menu at screen position
+    setContextMenuScreenPosition({ x: event.clientX, y: event.clientY })
+    setShowContextMenu(true)
+  }, [screenToFlowPosition])
+
+  // Handle context menu for pane (empty canvas areas)
+  const handlePaneContextMenu = useCallback((event: MouseEvent | React.MouseEvent) => {
+    handleContextMenu(event)
+  }, [handleContextMenu])
+
+  // Handle context menu for nodes
+  const handleNodeContextMenu = useCallback((event: MouseEvent | React.MouseEvent) => {
+    handleContextMenu(event)
+  }, [handleContextMenu])
+
+  const handleCopy = useCallback(() => {
+    const selectedNodes = nodes.filter(node => node.selected)
+    if (selectedNodes.length > 0) {
+      copyNodes(selectedNodes)
+    }
+    setShowContextMenu(false)
+  }, [nodes, copyNodes])
+
+  const handlePaste = useCallback(() => {
+    const position = lastRightClickPosition || screenToFlowPosition({
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2
+    })
+    pasteNodes(position)
+    setShowContextMenu(false)
+  }, [lastRightClickPosition, screenToFlowPosition, pasteNodes])
+
+  const handleDelete = useCallback(() => {
+    deleteSelectedNodes()
+    setShowContextMenu(false)
+  }, [deleteSelectedNodes])
+
+  // Create node types with context menu handler
+  const nodeTypes = useMemo(() => createNodeTypes(handleNodeContextMenu), [handleNodeContextMenu])
+
   return (
-    <div className="w-full h-full" ref={reactFlowWrapper}>
+    <div 
+      className="w-full h-full" 
+      ref={reactFlowWrapper}
+      onContextMenu={(e) => e.preventDefault()}
+    >
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -210,6 +326,7 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
         onEdgesChange={handleEdgesChange}
         onConnect={handleConnect}
         onViewportChange={handleViewportChange}
+        onPaneContextMenu={handlePaneContextMenu}
         nodeTypes={nodeTypes}
         defaultViewport={viewport}
         fitView={false}
@@ -221,6 +338,7 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
         onDrop={handleDrop}
         snapToGrid
         snapGrid={[20, 20]}
+        colorMode={currentTheme === 'dark' ? 'dark' : 'light'}
       >
         <Background 
           gap={20}
@@ -270,6 +388,56 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Drop files to create nodes</h3>
             <p className="text-gray-600 dark:text-purple-300/70">Images, videos, and documents will become context nodes</p>
           </div>
+        </div>
+      )}
+
+      {/* Custom Context Menu */}
+      {showContextMenu && contextMenuScreenPosition && (
+        <div
+          className="fixed bg-white dark:bg-black border border-gray-200 dark:border-purple-500/30 
+                     rounded-lg shadow-lg dark:shadow-[0_0_20px_rgba(168,85,247,0.4)] z-[1000] 
+                     py-1 min-w-[160px] animate-in fade-in duration-200"
+          style={{
+            left: `${Math.min(contextMenuScreenPosition.x, window.innerWidth - 160)}px`,
+            top: `${Math.min(contextMenuScreenPosition.y, window.innerHeight - 120)}px`,
+            transformOrigin: 'top left'
+          }}
+          role="menu"
+          aria-label="Canvas context menu"
+        >
+          <button
+            onClick={handleCopy}
+            disabled={nodes.filter(n => n.selected).length === 0}
+            className="w-full px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-purple-500/20 
+                       dark:text-purple-300 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            role="menuitem"
+          >
+            <Copy className="w-4 h-4" />
+            Copy
+            <span className="ml-auto text-xs opacity-60">Ctrl+C</span>
+          </button>
+          <button
+            onClick={handlePaste}
+            className="w-full px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-purple-500/20 
+                       dark:text-purple-300 flex items-center gap-2 transition-colors"
+            role="menuitem"
+          >
+            <Clipboard className="w-4 h-4" />
+            Paste
+            <span className="ml-auto text-xs opacity-60">Ctrl+V</span>
+          </button>
+          <div className="border-t border-gray-200 dark:border-purple-500/20 my-1" />
+          <button
+            onClick={handleDelete}
+            disabled={nodes.filter(n => n.selected).length === 0}
+            className="w-full px-3 py-2 text-sm text-left hover:bg-red-50 dark:hover:bg-red-500/20 
+                       text-red-600 dark:text-red-400 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            role="menuitem"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete
+            <span className="ml-auto text-xs opacity-60">Del</span>
+          </button>
         </div>
       )}
     </div>

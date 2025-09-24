@@ -1,11 +1,10 @@
 "use client"
 
-import { memo, useState, useRef, useEffect } from 'react'
-import { createPortal } from 'react-dom'
+import { memo, useState, useEffect } from 'react'
 import { NodeProps, Handle, Position } from '@xyflow/react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { FileText, Video, Image, Globe, File, X, Upload, Copy, Trash2 } from 'lucide-react'
+import { FileText, Video, Image, Globe, File, X, Upload } from 'lucide-react'
 import { useReactFlowStore } from '@/stores/useReactFlowStore'
 import { toast } from 'sonner'
 
@@ -29,10 +28,12 @@ const typeColors = {
   'ai-chat': 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400'
 }
 
-function ContextNode({ data, selected }: NodeProps) {
-  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
-  const { addContextNode, deleteNode, nodes } = useReactFlowStore()
+interface ContextNodeProps extends NodeProps {
+  onNodeContextMenu?: (event: React.MouseEvent) => void
+}
+
+function ContextNode({ data, selected, onNodeContextMenu }: ContextNodeProps) {
+  const { deleteNode } = useReactFlowStore()
 
   const isValidContextType = (type: any): type is ContextType => {
     return type in typeIcons;
@@ -42,84 +43,33 @@ function ContextNode({ data, selected }: NodeProps) {
   const Icon = typeIcons[contextType] || FileText
   const colorClass = typeColors[contextType] || 'bg-gray-50 text-gray-600'
   
-  // Click outside & keyboard handlers
+  // Keyboard handler for delete
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setContextMenuPosition(null)
-      }
-    }
-    
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (selected) {
-        if (e.key === 'Delete') {
-          e.preventDefault()
-          handleDelete()
-        } else if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
-          e.preventDefault()
-          handleCopy()
-        }
+      if (selected && (e.key === 'Delete' || e.key === 'Backspace')) {
+        e.preventDefault()
+        handleDelete()
       }
     }
     
-    if (contextMenuPosition) {
-      document.addEventListener('mousedown', handleClickOutside)
+    if (selected) {
       document.addEventListener('keydown', handleKeyDown)
       return () => {
-        document.removeEventListener('mousedown', handleClickOutside)
         document.removeEventListener('keydown', handleKeyDown)
       }
     }
-  }, [contextMenuPosition, selected])
-  
-  // Enhanced handlers
-  const handleContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    
-    // Calculate safe position
-    const menuWidth = 160
-    const menuHeight = 80
-    const padding = 8
-    
-    let x = e.clientX
-    let y = e.clientY
-    
-    // Keep menu on screen
-    if (x + menuWidth > window.innerWidth - padding) {
-      x = window.innerWidth - menuWidth - padding
-    }
-    if (y + menuHeight > window.innerHeight - padding) {
-      y = window.innerHeight - menuHeight - padding
-    }
-    
-    setContextMenuPosition({ x, y })
-  }
-  
-  const handleCopy = () => {
-    const currentNode = nodes.find(n => n.id === data.id)
-    if (currentNode) {
-      const nodeType = isValidContextType(data.type) ? data.type : 'text'
-      addContextNode(nodeType, {
-        x: currentNode.position.x + 20,
-        y: currentNode.position.y + 20
-      })
-    }
-    setContextMenuPosition(null)
-    toast.success('Node duplicated')
-  }
+  }, [selected])
   
   const handleDelete = () => {
     deleteNode(data.id as string)
-    setContextMenuPosition(null)
     toast.success('Node deleted')
   }
   
   return (
     <>
       <div 
-        onContextMenu={handleContextMenu}
         className={`react-flow-node ${selected ? 'ring-2 ring-green-500 dark:ring-cyan-400' : ''}`}
+        onContextMenu={onNodeContextMenu}
       >
         {/* Connection handles */}
         <Handle
@@ -171,46 +121,6 @@ function ContextNode({ data, selected }: NodeProps) {
           isConnectable={true}
         />
       </div>
-      
-      {/* Render context menu with Portal */}
-      {contextMenuPosition && typeof document !== 'undefined' && createPortal(
-        <div
-          ref={menuRef}
-          className="fixed bg-white dark:bg-black border border-gray-200 dark:border-cyan-500/30 
-                     rounded-lg shadow-lg dark:shadow-[0_0_20px_rgba(34,211,238,0.4)] z-[100] 
-                     py-1 min-w-[160px] animate-in fade-in duration-200"
-          style={{ 
-            left: `${contextMenuPosition.x}px`, 
-            top: `${contextMenuPosition.y}px`,
-            transformOrigin: 'top left'
-          }}
-          role="menu"
-          aria-label="Node context menu"
-        >
-          <button
-            onClick={handleCopy}
-            className="w-full px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-cyan-500/20 
-                       dark:text-cyan-300 flex items-center gap-2 transition-colors"
-            role="menuitem"
-          >
-            <Copy className="w-4 h-4" />
-            Duplicate
-            <span className="ml-auto text-xs opacity-60">Ctrl+C</span>
-          </button>
-          <div className="border-t border-gray-200 dark:border-cyan-500/20 my-1" />
-          <button
-            onClick={handleDelete}
-            className="w-full px-3 py-2 text-sm text-left hover:bg-red-50 dark:hover:bg-red-500/20 
-                       text-red-600 dark:text-red-400 flex items-center gap-2 transition-colors"
-            role="menuitem"
-          >
-            <Trash2 className="w-4 h-4" />
-            Delete
-            <span className="ml-auto text-xs opacity-60">Del</span>
-          </button>
-        </div>,
-        document.body
-      )}
     </>
   )
 }
