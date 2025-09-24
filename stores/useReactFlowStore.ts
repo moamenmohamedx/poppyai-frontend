@@ -9,8 +9,8 @@ export interface ReactFlowStore {
   viewport: Viewport
   
   // Node management
-  addChatNode: (position?: { x: number; y: number }) => void
-  addContextNode: (type: 'ai-chat' | 'video' | 'image' | 'text' | 'website' | 'document', position?: { x: number; y: number }) => void
+  addChatNode: (position: { x: number; y: number }) => void
+  addContextNode: (type: 'ai-chat' | 'video' | 'image' | 'text' | 'website' | 'document', position: { x: number; y: number }) => void
   updateNode: (id: string, updates: Partial<Node>) => void
   deleteNode: (id: string) => void
   
@@ -45,7 +45,7 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
   chatNodeCount: 0,
   contextNodeCount: 0,
   
-  addChatNode: (position = { x: 250, y: 100 }) => {
+  addChatNode: (position) => {
     set(state => {
       const newCount = state.chatNodeCount + 1
       const id = `chat-node-${newCount}`
@@ -70,7 +70,7 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
     })
   },
   
-  addContextNode: (type, position = { x: 100, y: 100 }) => {
+  addContextNode: (type, position) => {
     set(state => {
       const newCount = state.contextNodeCount + 1
       const id = `context-node-${newCount}`

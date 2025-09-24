@@ -80,21 +80,52 @@ export default function ReactFlowContextLibrary({ projectId, onToggleCollapse, i
   const { addContextNode, addChatNode } = useReactFlowStore()
 
   const handleAddCard = (cardType: (typeof cardTypes)[0]) => {
-    // Add some randomness to position so nodes don't stack exactly
-    const randomOffset = () => Math.random() * 100 - 50
+    // Get the React Flow wrapper element to calculate viewport center
+    const reactFlowWrapper = document.querySelector('.react-flow')
+    const viewportElement = document.querySelector('.react-flow__viewport') as HTMLElement
+    
+    if (!reactFlowWrapper || !viewportElement) {
+      // Fallback if elements not found
+      const fallbackPosition = { x: 400, y: 200 }
+      if (cardType.type === "ai-chat") {
+        addChatNode(fallbackPosition)
+      } else {
+        addContextNode(cardType.type, fallbackPosition)
+      }
+      return
+    }
+    
+    // Get the current viewport transform
+    const transform = viewportElement.style.transform
+    const transformMatch = transform.match(/translate\(([^,]+),([^)]+)\) scale\(([^)]+)\)/)
+    
+    let translateX = 0, translateY = 0, scale = 1
+    if (transformMatch) {
+      translateX = parseFloat(transformMatch[1])
+      translateY = parseFloat(transformMatch[2])
+      scale = parseFloat(transformMatch[3])
+    }
+    
+    // Calculate center of the visible area
+    const bounds = reactFlowWrapper.getBoundingClientRect()
+    const centerX = bounds.width / 2
+    const centerY = bounds.height / 2
+    
+    // Convert to flow coordinates
+    const flowX = (centerX - translateX) / scale
+    const flowY = (centerY - translateY) / scale
+    
+    // Add small random offset to prevent exact stacking
+    const randomOffset = () => Math.random() * 40 - 20
+    const position = {
+      x: flowX + randomOffset() - 200, // Subtract half of node width (400/2)
+      y: flowY + randomOffset() - 140  // Subtract half of node height (280/2)
+    }
     
     if (cardType.type === "ai-chat") {
-      // Add chat node
-      addChatNode({ 
-        x: 400 + randomOffset(), 
-        y: 200 + randomOffset() 
-      })
+      addChatNode(position)
     } else {
-      // Add context node
-      addContextNode(cardType.type, { 
-        x: 400 + randomOffset(), 
-        y: 200 + randomOffset() 
-      })
+      addContextNode(cardType.type, position)
     }
   }
 
