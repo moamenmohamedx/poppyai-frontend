@@ -72,7 +72,7 @@ function TextBlockNode({ data, selected, onNodeContextMenu }: TextBlockNodeProps
         />
         
         {/* Text Block Node UI */}
-        <Card className="w-[400px] h-[320px] bg-white dark:bg-slate-800 shadow-lg dark:shadow-[0_0_20px_rgba(168,85,247,0.4)] border border-gray-200 dark:border-purple-500/30 transition-all overflow-hidden">
+        <Card className="w-[400px] h-[320px] bg-white dark:bg-slate-800 shadow-lg dark:shadow-[0_0_20px_rgba(168,85,247,0.4)] border border-gray-200 dark:border-purple-500/30 transition-all overflow-hidden gap-3 py-3">
           {/* Header with blue border */}
           <div className="border-t-4 border-indigo-600 dark:border-purple-500 bg-white dark:bg-slate-800">
             <div className="flex items-center justify-between px-3 py-2">
@@ -94,8 +94,8 @@ function TextBlockNode({ data, selected, onNodeContextMenu }: TextBlockNodeProps
           </div>
           
           {/* Content Area */}
-          <div className="p-4 flex flex-col gap-3 h-[calc(100%-52px)]">
-            {/* Primary Text Input */}
+          <div className="px-1 pb-1 flex flex-col gap-1 h-[calc(100%-52px)]">
+            {/* Primary Text Input - Larger */}
             <div className="flex-1">
               <Textarea
                 value={primaryText}
@@ -106,8 +106,8 @@ function TextBlockNode({ data, selected, onNodeContextMenu }: TextBlockNodeProps
               />
             </div>
             
-            {/* Secondary Notes Input */}
-            <div className="h-20">
+            {/* Secondary Notes Input - Smaller */}
+            <div className="h-12">
               <Textarea
                 value={notesText}
                 onChange={handleNotesTextChange}

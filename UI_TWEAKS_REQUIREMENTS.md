@@ -4,37 +4,8 @@
 
 This document outlines the requirements for the next set of UI and functionality enhancements for the AI Context Organizer application. Each requirement has been detailed to ensure clarity for implementation.
 
-## 1. Canvas Background Enhancement (Light Mode)
 
-- **Requirement:** Update the background of the canvas for light mode to improve visual comfort and aesthetics.
-- **Description:** The reference image shows a user interface with a dotted, light-grey background grid, providing a softer, more structured canvas area compared to a stark white background.
-- **Details:**
-    - The canvas background should be changed from the current white to a light grey color.
-    - This change applies **only** to the light theme. The dark theme's background should remain unchanged.
-    - The color should be a subtle, neutral grey. Based on the project's design system (`slate-*`), `bg-slate-50` or a similar shade should be used.
-    - This background should cover the entire React Flow canvas area where nodes and edges are rendered.
-
-## 2. New Node Type: Text Block
-
-- **Requirement:** Introduce a new "Text Block" node to the React Flow canvas.
-- **Description:** The reference image displays a rectangular node labeled "Text". It features a blue header bar, a large primary textarea with the placeholder "Enter text or type '/' for commands," and a smaller secondary textarea below it for "Add notes for AI to use...".
-- **Component Breakdown:**
-    - **Header:**
-        - A distinct header section with a blue top border (`indigo-600`).
-        - It should contain an icon (a letter 'T' inside a blue square) and the title "Text".
-    - **Primary Text Input:**
-        - A multi-line textarea for main content entry.
-        - Placeholder text should read: "Enter text or type '/' for commands".
-    - **Secondary Notes Input:**
-        - A smaller, secondary textarea below the main one.
-        - This area is intended for notes or metadata related to the main text.
-        - Placeholder text should read: "Add notes for AI to use...".
-    - **Styling:**
-        - The node should have a white background, rounded corners, and a subtle box shadow for depth.
-        - For dark mode, the node should adapt to the theme, using a dark background (e.g., `bg-slate-800`) and light-colored text, consistent with the rest of the dark theme design.
-        - It should include standard source/target handles for connecting to other nodes, defaulting to a source handle on the right and a target handle on the left.
-
-## 3. Enhanced Connectivity for Chat Node
+## 1. Enhanced Connectivity for Chat Node
 
 - **Requirement:** Modify the existing `ChatNode` to allow connections from both left and right sides.
 - **Technical Feasibility:** This requirement is subject to a technical feasibility check before implementation.
@@ -45,7 +16,7 @@ This document outlines the requirements for the next set of UI and functionality
         - **Right Side:** One `target` handle and one `source` handle.
     - This will allow for more flexible and complex workflow creations, enabling connections to flow into and out of the `ChatNode` from either direction.
 
-## 4. Interactive Edge Disconnection
+## 2. Interactive Edge Disconnection
 
 - **Requirement:** Implement a feature to easily disconnect two nodes by removing the edge connecting them.
 - **Description:** The reference image illustrates a curved, dashed connection line (an edge) between two points. At the midpoint of this edge, a circular red button with a white 'x' is shown, indicating a control to delete or sever the connection.
@@ -57,7 +28,7 @@ This document outlines the requirements for the next set of UI and functionality
         - The button should disappear when the cursor is no longer hovering over the edge.
     - This functionality should be applied to all edge types in the application.
 
-## 5. Data Flow: Text Node to Chat Node
+## 3. Data Flow: Text Node to Chat Node
 
 - **Requirement:** Define and specify the data flow mechanism for passing context from a `Text Block` node to an `AI Chat` node.
 - **Conceptual Goal:** The content within a `Text Block` should be usable as context or input for a connected `AI Chat` node.

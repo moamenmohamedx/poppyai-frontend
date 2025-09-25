@@ -4,85 +4,8 @@
 
 This document provides a detailed technical implementation plan for the UI and functionality enhancements outlined in `UI_TWEAKS_REQUIREMENTS.md`. Each section maps a requirement to specific, actionable changes in the codebase.
 
----
 
-## 1. Canvas Background Enhancement (Light Mode)
-
-**Objective:** Change the light mode canvas background from `bg-gray-50` to `bg-slate-50` for better visual comfort.
-
-**File to Edit:** `components/ReactFlowCanvas.tsx`
-
-**Change Details:**
-- Locate the `<ReactFlow>` component.
-- In the `className` prop, modify the background color utility for light mode.
-
-**Code Sketch (Diff):**
-```diff
-// components/ReactFlowCanvas.tsx
-
-// ...
-      <ReactFlow
-        // ...
--       className="bg-gray-50 dark:bg-black"
-+       className="bg-slate-50 dark:bg-black"
-        // ...
-      >
-// ...
-```
-
----
-
-## 2. New Node Type: Text Block
-
-**Objective:** Create a new "Text Block" node with a header, a primary textarea, and a secondary notes textarea.
-
-**Plan:**
-
-**1. Create the Node Component:**
-   - **File:** `components/nodes/TextBlockNode.tsx` (new file)
-   - **Structure:**
-     - Use the provided `ComponentName` template. The component will be named `TextBlockNode`.
-     - It will receive `NodeProps` from React Flow.
-     - The main container will be a `Card` component from `shadcn/ui`.
-     - The header will be a `div` with a `border-t-4 border-indigo-600`. It will contain an icon and the title "Text".
-     - Use two `<Textarea>` components from `shadcn/ui` for the inputs, with the specified placeholder text.
-     - Include one `Handle` of `type="source"` on the right and one `type="target"` on the left.
-     - Implement state management for the textarea values within the component using `useState` initially, and then connect it to the global store.
-
-**2. Register the New Node Type:**
-   - **File:** `components/ReactFlowCanvas.tsx`
-   - **Change Details:**
-     - Import the new `TextBlockNode` component.
-     - Add it to the `nodeTypes` object.
-
-**Code Sketch (Diff):**
-```diff
-// components/ReactFlowCanvas.tsx
-
-// ...
-import ChatNode from './nodes/ChatNode';
-import ContextNode from './nodes/ContextNode';
-import TextBlockNode from './nodes/TextBlockNode';
-
-const createNodeTypes = (onContextMenu: (event: MouseEvent | React.MouseEvent) => void) => ({
-  chatNode: (props: any) => <ChatNode {...props} onNodeContextMenu={onContextMenu} />,
-  contextNode: (props: any) => <ContextNode {...props} onNodeContextMenu={onContextMenu} />,
-  textBlockNode: (props: any) => <TextBlockNode {...props} onNodeContextMenu={onContextMenu} />,
-});
-// ...
-```
-
-**3. Add State Management for the New Node:**
-   - **File:** `stores/useReactFlowStore.ts`
-   - **Change Details:**
-     - Add a new function `addTextBlockNode` to the `ReactFlowStore` interface and implementation. This function will create a new node of type `textBlockNode` with a unique ID and initial data structure for its two text fields.
-
-**4. Add Node to Canvas:**
-   - For now, we will add a button to the `ContextMenu` in `ReactFlowCanvas.tsx` to add the new `TextBlockNode`. A more permanent solution can be a dedicated node library panel.
-
----
-
-## 3. Enhanced Connectivity for Chat Node
+## 1. Enhanced Connectivity for Chat Node
 
 **Objective:** Allow the `ChatNode` to accept connections on both its left and right sides.
 
@@ -138,7 +61,7 @@ const createNodeTypes = (onContextMenu: (event: MouseEvent | React.MouseEvent) =
 
 ---
 
-## 4. Interactive Edge Disconnection
+## 2. Interactive Edge Disconnection
 
 **Objective:** Add a button to edges that allows users to delete the connection on hover.
 
@@ -164,7 +87,7 @@ const createNodeTypes = (onContextMenu: (event: MouseEvent | React.MouseEvent) =
 
 ---
 
-## 5. Data Flow: Text Node to Chat Node
+## 3. Data Flow: Text Node to Chat Node
 
 **Objective:** Pass data from a connected `TextBlockNode` to a `ChatNode`.
 
