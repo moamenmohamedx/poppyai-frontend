@@ -220,13 +220,6 @@ function ChatNode({ data, selected, onNodeContextMenu }: ChatNodeProps) {
           </div>
         </Card>
         
-        <Handle
-          type="source" 
-          position={Position.Right}
-          className="!bg-indigo-600 dark:!bg-purple-500 !border-white dark:!border-slate-900 dark:handle-glow-purple dark:handle-glow-purple-hover"
-          style={{ width: '20px', height: '20px' }}
-          isConnectable={true}
-        />
       </div>
     </>
   )

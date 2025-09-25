@@ -5,16 +5,13 @@
 This document outlines the requirements for the next set of UI and functionality enhancements for the AI Context Organizer application. Each requirement has been detailed to ensure clarity for implementation.
 
 
-## 1. Enhanced Connectivity for Chat Node
+## 1. Standardized Node Connectivity
 
-- **Requirement:** Modify the existing `ChatNode` to allow connections from both left and right sides.
-- **Technical Feasibility:** This requirement is subject to a technical feasibility check before implementation.
+- **Requirement:** Refine the node connection model to enforce a clear and intuitive right-to-left data flow.
 - **Functional Specification:**
-    - The `ChatNode` must be able to function as both a target and a source on both its left and right sides.
-    - This means it should have handles (`<Handle />`) configured as follows:
-        - **Left Side:** One `target` handle and one `source` handle.
-        - **Right Side:** One `target` handle and one `source` handle.
-    - This will allow for more flexible and complex workflow creations, enabling connections to flow into and out of the `ChatNode` from either direction.
+    - **Context Nodes (`ContextNode`, `TextBlockNode`, etc.):** These nodes must have only one connection handle. This handle will be a `source` type, positioned exclusively on the **right** side of the node. This signifies that context flows *out* of these nodes.
+    - **AI Chat Node (`ChatNode`):** This node must have only one connection handle. This handle will be a `target` type, positioned exclusively on the **left** side of the node. This signifies that context flows *into* this node.
+    - **Outcome:** This change establishes a strict visual and functional data flow, where context is sourced from nodes on the right and fed into chat nodes on the left. All other handles on these nodes will be removed.
 
 ## 2. Interactive Edge Disconnection
 

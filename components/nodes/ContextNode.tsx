@@ -72,13 +72,6 @@ function ContextNode({ data, selected, onNodeContextMenu }: ContextNodeProps) {
         onContextMenu={onNodeContextMenu}
       >
         {/* Connection handles */}
-        <Handle
-          type="target"
-          position={Position.Left}
-          className="!bg-green-600 dark:!bg-cyan-500 !border-white dark:!border-slate-900 dark:handle-glow-cyan dark:handle-glow-cyan-hover"
-          style={{ width: '20px', height: '20px' }}
-          isConnectable={true}
-        />
         
         {/* Simple Context Node UI */}
         <Card className="w-[400px] min-h-[280px] bg-white dark:bg-black shadow-lg dark:shadow-[0_0_20px_rgba(34,211,238,0.4)] border border-transparent dark:border-cyan-500/30 transition-all">

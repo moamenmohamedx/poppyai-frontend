@@ -5,19 +5,17 @@
 This document provides a detailed technical implementation plan for the UI and functionality enhancements outlined in `UI_TWEAKS_REQUIREMENTS.md`. Each section maps a requirement to specific, actionable changes in the codebase.
 
 
-## 1. Enhanced Connectivity for Chat Node
+## 1. Revised Node Handle Configuration
 
-**Objective:** Allow the `ChatNode` to accept connections on both its left and right sides.
+**Objective:** Standardize all node handles to a single-handle, right-to-left connection model. Context-providing nodes will have one `source` handle on the right, and the `ChatNode` will have one `target` handle on the left.
 
-**File to Edit:** `components/nodes/ChatNode.tsx`
+**Plan:**
 
-**Change Details:**
-- Add two new `<Handle>` components.
-- One `source` handle on the left (`Position.Left`).
-- One `target` handle on the right (`Position.Right`).
-- Ensure all four handles are rendered and connectable.
+**A. Update `ChatNode`:**
+   - **File:** `components/nodes/ChatNode.tsx`
+   - **Action:** Remove the right-side handle, leaving only the existing `target` handle on the left.
 
-**Code Sketch (Diff):**
+**Code Sketch (Diff for `ChatNode.tsx`):**
 ```diff
 // components/nodes/ChatNode.tsx
 
@@ -27,14 +25,8 @@ This document provides a detailed technical implementation plan for the UI and f
           type="target"
           position={Position.Left}
           id="left-target"
-          // ...
-        />
-        <Handle
-          type="source"
-          position={Position.Left}
-          id="left-source"
-          className="!bg-green-500 dark:!bg-green-400 !border-white dark:!border-slate-900"
-          style={{ top: 'auto', bottom: 20, width: '16px', height: '16px' }}
+          className="!bg-indigo-600 dark:!bg-purple-500 !border-white dark:!border-slate-900 dark:handle-glow-purple dark:handle-glow-purple-hover"
+          style={{ width: '20px', height: '20px' }}
           isConnectable={true}
         />
         
@@ -42,22 +34,36 @@ This document provides a detailed technical implementation plan for the UI and f
           {/* ... Card Content ... */}
         </Card>
         
+```
+
+**B. Update `ContextNode`:**
+   - **File:** `components/nodes/ContextNode.tsx`
+   - **Action:** Remove the left-side `target` handle, leaving only the existing `source` handle on the right.
+
+**Code Sketch (Diff for `ContextNode.tsx`):**
+```diff
+// components/nodes/ContextNode.tsx
+
+// ...
+        {/* Connection handles */}
+        
+        <Card>
+          {/* ... Card Content ... */}
+        </Card>
+        
         <Handle
-          type="source" 
+          type="source"
           position={Position.Right}
-          id="right-source"
-          // ...
-        />
-        <Handle
-          type="target"
-          position={Position.Right}
-          id="right-target"
-          className="!bg-red-500 dark:!bg-red-400 !border-white dark:!border-slate-900"
-          style={{ top: 'auto', bottom: 20, width: '16px', height: '16px' }}
+          className="!bg-indigo-600 dark:!bg-purple-500 !border-white dark:!border-slate-900 dark:handle-glow-purple dark:handle-glow-purple-hover"
+          style={{ width: '20px', height: '20px' }}
           isConnectable={true}
         />
 // ...
 ```
+
+**C. Define Handles for New `TextBlockNode`:**
+   - **File:** `components/nodes/TextBlockNode.tsx` (during creation)
+   - **Action:** Ensure the new node is created with only a single `source` handle on the right.
 
 ---
 

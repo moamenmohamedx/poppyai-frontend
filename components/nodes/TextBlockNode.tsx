@@ -63,13 +63,6 @@ function TextBlockNode({ data, selected, onNodeContextMenu }: TextBlockNodeProps
         onContextMenu={onNodeContextMenu}
       >
         {/* Connection handles */}
-        <Handle
-          type="target"
-          position={Position.Left}
-          className="!bg-indigo-600 dark:!bg-purple-500 !border-white dark:!border-slate-900"
-          style={{ width: '16px', height: '16px' }}
-          isConnectable={true}
-        />
         
         {/* Text Block Node UI */}
         <Card className="w-[400px] h-[320px] bg-white dark:bg-slate-800 shadow-lg dark:shadow-[0_0_20px_rgba(168,85,247,0.4)] border border-gray-200 dark:border-purple-500/30 transition-all overflow-hidden gap-3 py-3">
