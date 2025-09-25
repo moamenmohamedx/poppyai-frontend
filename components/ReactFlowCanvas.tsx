@@ -26,6 +26,7 @@ import { useTheme } from 'next-themes'
 
 import ChatNode from './nodes/ChatNode'
 import ContextNode from './nodes/ContextNode'
+import TextBlockNode from './nodes/TextBlockNode'
 import { useReactFlowStore } from '@/stores/useReactFlowStore'
 
 interface ReactFlowCanvasProps {
@@ -36,6 +37,7 @@ interface ReactFlowCanvasProps {
 const createNodeTypes = (onContextMenu: (event: MouseEvent | React.MouseEvent) => void) => ({
   chatNode: (props: any) => <ChatNode {...props} onNodeContextMenu={onContextMenu} />,
   contextNode: (props: any) => <ContextNode {...props} onNodeContextMenu={onContextMenu} />,
+  textBlockNode: (props: any) => <TextBlockNode {...props} onNodeContextMenu={onContextMenu} />,
 })
 
 function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
@@ -45,6 +47,7 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
     viewport,
     addChatNode, 
     addContextNode,
+    addTextBlockNode,
     deleteNode,
     setNodes,
     setEdges,
@@ -146,8 +149,8 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
     const sourceNode = nodes.find(n => n.id === connection.source)
     const targetNode = nodes.find(n => n.id === connection.target)
     
-    // Validate connection: only context → chat
-    if (sourceNode?.type === 'contextNode' && targetNode?.type === 'chatNode') {
+    // Validate connection: only context → chat or textBlock → chat
+    if ((sourceNode?.type === 'contextNode' || sourceNode?.type === 'textBlockNode') && targetNode?.type === 'chatNode') {
       const newEdge: Edge = {
         id: `edge-${connection.source}-${connection.target}`,
         source: connection.source!,
@@ -172,11 +175,11 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
     const sourceNode = nodes.find(n => n.id === connection.source)
     const targetNode = nodes.find(n => n.id === connection.target)
     
-    return sourceNode?.type === 'contextNode' && targetNode?.type === 'chatNode'
+    return (sourceNode?.type === 'contextNode' || sourceNode?.type === 'textBlockNode') && targetNode?.type === 'chatNode'
   }, [nodes])
 
   // Add node at center of viewport
-  const addNodeAtCenter = useCallback((type: 'chat' | 'context', contextType?: string) => {
+  const addNodeAtCenter = useCallback((type: 'chat' | 'context' | 'textBlock', contextType?: string) => {
     const bounds = reactFlowWrapper.current?.getBoundingClientRect()
     if (!bounds) return
 
@@ -188,6 +191,8 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
 
       if (type === 'chat') {
         addChatNode(position)
+      } else if (type === 'textBlock') {
+        addTextBlockNode(position)
       } else {
         addContextNode(contextType as any, position)
       }
@@ -196,11 +201,13 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
       const fallbackPosition = { x: 250, y: 150 }
       if (type === 'chat') {
         addChatNode(fallbackPosition)
+      } else if (type === 'textBlock') {
+        addTextBlockNode(fallbackPosition)
       } else {
         addContextNode(contextType as any, fallbackPosition)
       }
     }
-  }, [screenToFlowPosition, addChatNode, addContextNode])
+  }, [screenToFlowPosition, addChatNode, addContextNode, addTextBlockNode])
 
   // Handle file drag and drop
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -330,7 +337,8 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
         nodeTypes={nodeTypes}
         defaultViewport={viewport}
         fitView={false}
-        className="bg-gray-50 dark:bg-black"
+        className="dark:bg-black"
+        style={{ backgroundColor: currentTheme === 'dark' ? undefined : 'hsl(214.3, 31.8%, 91.4%)' }}
         deleteKeyCode={["Backspace", "Delete"]}
         multiSelectionKeyCode={["Meta", "Ctrl"]}
         onDragOver={handleDragOver}

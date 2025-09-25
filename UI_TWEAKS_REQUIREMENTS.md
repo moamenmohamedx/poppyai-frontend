@@ -1,26 +1,69 @@
-# UI Tweaks Requirements Document
+# UI Tweaks Requirements (September 2025)
 
-## 4. Dark Mode Contrast Correction for Controls
+## Overview
 
-### 4.1. Objective
-Fix the poor visibility of the React Flow controls component in dark mode.
+This document outlines the requirements for the next set of UI and functionality enhancements for the AI Context Organizer application. Each requirement has been detailed to ensure clarity for implementation.
 
-### 4.2. Requirements
-- **Improve Contrast:** Adjust the color of the control icons and background to ensure they are clearly visible against the dark canvas background.
-- **Reference Analysis:** The second provided image, which highlights the issue, should be used as a direct reference for what needs to be fixed. The final implementation should have no contrast issues.
-- **Consistent Styling:** The corrected controls must maintain a consistent visual style with other UI elements in dark mode.
+## 1. Canvas Background Enhancement (Light Mode)
 
-## 5. Custom Context Menu and Toast Notifications
+- **Requirement:** Update the background of the canvas for light mode to improve visual comfort and aesthetics.
+- **Description:** The reference image shows a user interface with a dotted, light-grey background grid, providing a softer, more structured canvas area compared to a stark white background.
+- **Details:**
+    - The canvas background should be changed from the current white to a light grey color.
+    - This change applies **only** to the light theme. The dark theme's background should remain unchanged.
+    - The color should be a subtle, neutral grey. Based on the project's design system (`slate-*`), `bg-slate-50` or a similar shade should be used.
+    - This background should cover the entire React Flow canvas area where nodes and edges are rendered.
 
-### 5.1. Objective
-Implement a custom right-click context menu with copy/paste functionality and provide clear visual feedback for these actions using toast notifications.
+## 2. New Node Type: Text Block
 
-### 5.2. Requirements
-- **Disable Native Context Menu:** The default browser right-click menu must be disabled across the entire canvas area.
-- **Custom Menu Functionality:**
-  - On right-click within the canvas or on a node, a custom context menu should appear.
-  - This menu must include "Copy" and "Paste" options. The "Duplicate" option should be replaced by this new functionality.
-- **Toast Notifications:**
-  - When a user selects "Copy," a toast notification must appear at the top-center of the screen with the text "Copied web content" and a success icon, exactly as shown in the reference image.
-  - When a user selects "Paste," a similar toast notification for "Pasted web content" should appear.
-  - The toast notifications should be non-intrusive and disappear automatically after a short duration (e.g., 3 seconds).
+- **Requirement:** Introduce a new "Text Block" node to the React Flow canvas.
+- **Description:** The reference image displays a rectangular node labeled "Text". It features a blue header bar, a large primary textarea with the placeholder "Enter text or type '/' for commands," and a smaller secondary textarea below it for "Add notes for AI to use...".
+- **Component Breakdown:**
+    - **Header:**
+        - A distinct header section with a blue top border (`indigo-600`).
+        - It should contain an icon (a letter 'T' inside a blue square) and the title "Text".
+    - **Primary Text Input:**
+        - A multi-line textarea for main content entry.
+        - Placeholder text should read: "Enter text or type '/' for commands".
+    - **Secondary Notes Input:**
+        - A smaller, secondary textarea below the main one.
+        - This area is intended for notes or metadata related to the main text.
+        - Placeholder text should read: "Add notes for AI to use...".
+    - **Styling:**
+        - The node should have a white background, rounded corners, and a subtle box shadow for depth.
+        - For dark mode, the node should adapt to the theme, using a dark background (e.g., `bg-slate-800`) and light-colored text, consistent with the rest of the dark theme design.
+        - It should include standard source/target handles for connecting to other nodes, defaulting to a source handle on the right and a target handle on the left.
+
+## 3. Enhanced Connectivity for Chat Node
+
+- **Requirement:** Modify the existing `ChatNode` to allow connections from both left and right sides.
+- **Technical Feasibility:** This requirement is subject to a technical feasibility check before implementation.
+- **Functional Specification:**
+    - The `ChatNode` must be able to function as both a target and a source on both its left and right sides.
+    - This means it should have handles (`<Handle />`) configured as follows:
+        - **Left Side:** One `target` handle and one `source` handle.
+        - **Right Side:** One `target` handle and one `source` handle.
+    - This will allow for more flexible and complex workflow creations, enabling connections to flow into and out of the `ChatNode` from either direction.
+
+## 4. Interactive Edge Disconnection
+
+- **Requirement:** Implement a feature to easily disconnect two nodes by removing the edge connecting them.
+- **Description:** The reference image illustrates a curved, dashed connection line (an edge) between two points. At the midpoint of this edge, a circular red button with a white 'x' is shown, indicating a control to delete or sever the connection.
+- **Interaction Details:**
+    - When a user hovers their cursor over the midpoint of an edge, a disconnect button should appear.
+    - **Button Appearance:** The button should be a circular, red icon (`bg-red-500`) with a white "x" symbol in the center.
+    - **Functionality:**
+        - Clicking this "x" button must delete the edge from the canvas.
+        - The button should disappear when the cursor is no longer hovering over the edge.
+    - This functionality should be applied to all edge types in the application.
+
+## 5. Data Flow: Text Node to Chat Node
+
+- **Requirement:** Define and specify the data flow mechanism for passing context from a `Text Block` node to an `AI Chat` node.
+- **Conceptual Goal:** The content within a `Text Block` should be usable as context or input for a connected `AI Chat` node.
+- **Specification:**
+    - When a `Text Block` node is connected to an `AI Chat` node (i.e., an edge is created from a `Text Block`'s source handle to a `Chat Node`'s target handle), the `AI Chat` node must be made aware of the `Text Block`'s content.
+    - The data to be passed should include:
+        - The content of the primary text input.
+        - The content of the secondary notes input.
+    - The implementation plan should detail how the application state (likely managed by Zustand) will be updated to reflect this connection and make the text content available to the `ChatNode`'s logic.

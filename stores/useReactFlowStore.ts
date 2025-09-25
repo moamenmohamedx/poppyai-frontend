@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { Node, Edge, addEdge, Connection, Viewport } from '@xyflow/react'
-import { ChatNodeData, ContextNodeData } from '@/types/reactFlowTypes'
+import { ChatNodeData, ContextNodeData, TextBlockNodeData } from '@/types/reactFlowTypes'
 import { toast } from 'sonner'
 
 export interface ReactFlowStore {
@@ -12,6 +12,7 @@ export interface ReactFlowStore {
   // Node management
   addChatNode: (position: { x: number; y: number }) => void
   addContextNode: (type: 'ai-chat' | 'video' | 'image' | 'text' | 'website' | 'document', position: { x: number; y: number }) => void
+  addTextBlockNode: (position: { x: number; y: number }) => void
   updateNode: (id: string, updates: Partial<Node>) => void
   deleteNode: (id: string) => void
   
@@ -43,6 +44,7 @@ export interface ReactFlowStore {
   // Internal counters
   chatNodeCount: number
   contextNodeCount: number
+  textBlockNodeCount: number
 }
 
 export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
@@ -52,6 +54,7 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
   viewport: { x: 0, y: 0, zoom: 1 },
   chatNodeCount: 0,
   contextNodeCount: 0,
+  textBlockNodeCount: 0,
   copiedNodes: [],
   copiedEdges: [],
   
@@ -107,6 +110,33 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
     })
   },
   
+  addTextBlockNode: (position) => {
+    set(state => {
+      const newCount = state.textBlockNodeCount + 1
+      const id = `text-block-node-${newCount}`
+      const newNode: Node<TextBlockNodeData> = {
+        id,
+        type: 'textBlockNode',
+        position,
+        data: {
+          id,
+          width: 400,
+          height: 320,
+          isMinimized: false,
+          zIndex: 1,
+          primaryText: '',
+          notesText: '',
+          projectId: 'current-project' // This should come from context
+        }
+      }
+      
+      return {
+        nodes: [...state.nodes, newNode],
+        textBlockNodeCount: newCount
+      }
+    })
+  },
+  
   updateNode: (id, updates) => {
     set(state => ({
       nodes: state.nodes.map(node => 
@@ -143,7 +173,7 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
   },
   
   resetCanvas: () => {
-    set({ nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 }, chatNodeCount: 0, contextNodeCount: 0 })
+    set({ nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 }, chatNodeCount: 0, contextNodeCount: 0, textBlockNodeCount: 0 })
   },
   
   setViewport: (viewport) => {
@@ -155,6 +185,7 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
     // to avoid future ID collisions. We'll parse the highest existing ID number.
     let maxChatId = 0
     let maxContextId = 0
+    let maxTextBlockId = 0
     nodes.forEach(node => {
       if (node.id.startsWith('chat-node-')) {
         const num = parseInt(node.id.split('-')[2], 10)
@@ -162,10 +193,13 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
       } else if (node.id.startsWith('context-node-')) {
         const num = parseInt(node.id.split('-')[2], 10)
         if (num > maxContextId) maxContextId = num
+      } else if (node.id.startsWith('text-block-node-')) {
+        const num = parseInt(node.id.split('-')[3], 10)
+        if (num > maxTextBlockId) maxTextBlockId = num
       }
     })
     
-    set({ nodes, edges, viewport, chatNodeCount: maxChatId, contextNodeCount: maxContextId })
+    set({ nodes, edges, viewport, chatNodeCount: maxChatId, contextNodeCount: maxContextId, textBlockNodeCount: maxTextBlockId })
   },
   
   onConnect: (connection) => {
@@ -173,8 +207,8 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
     const sourceNode = nodes.find(n => n.id === connection.source)
     const targetNode = nodes.find(n => n.id === connection.target)
     
-    // Validate connection: only context → chat
-    if (sourceNode?.type === 'contextNode' && targetNode?.type === 'chatNode') {
+    // Validate connection: only context → chat or textBlock → chat
+    if ((sourceNode?.type === 'contextNode' || sourceNode?.type === 'textBlockNode') && targetNode?.type === 'chatNode') {
       const newEdge: Edge = {
         id: `edge-${connection.source}-${connection.target}`,
         source: connection.source!,

@@ -15,6 +15,7 @@ import {
   File,
   Plus,
   Search,
+  Type,
 } from "lucide-react"
 import { useReactFlowStore } from "@/stores/useReactFlowStore"
 
@@ -51,9 +52,9 @@ const cardTypes = [
   },
   {
     type: "text" as const,
-    icon: FileText,
-    title: "Text Note",
-    description: "Create a text note",
+    icon: Type,
+    title: "Add a Text Block",
+    description: "Create a text block with notes",
     color: "text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-900/30 dark:border-blue-500/30",
     hoverColor: "hover:bg-blue-100 dark:hover:bg-blue-900/50",
   },
@@ -77,7 +78,7 @@ const cardTypes = [
 
 export default function ReactFlowContextLibrary({ projectId, onToggleCollapse, isCollapsed }: ReactFlowContextLibraryProps) {
   const [searchQuery, setSearchQuery] = useState("")
-  const { addContextNode, addChatNode } = useReactFlowStore()
+  const { addContextNode, addChatNode, addTextBlockNode } = useReactFlowStore()
 
   const handleAddCard = (cardType: (typeof cardTypes)[0]) => {
     // Get the React Flow wrapper element to calculate viewport center
@@ -89,6 +90,8 @@ export default function ReactFlowContextLibrary({ projectId, onToggleCollapse, i
       const fallbackPosition = { x: 400, y: 200 }
       if (cardType.type === "ai-chat") {
         addChatNode(fallbackPosition)
+      } else if (cardType.type === "text") {
+        addTextBlockNode(fallbackPosition)
       } else {
         addContextNode(cardType.type, fallbackPosition)
       }
@@ -124,6 +127,8 @@ export default function ReactFlowContextLibrary({ projectId, onToggleCollapse, i
     
     if (cardType.type === "ai-chat") {
       addChatNode(position)
+    } else if (cardType.type === "text") {
+      addTextBlockNode(position)
     } else {
       addContextNode(cardType.type, position)
     }

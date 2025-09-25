@@ -12,10 +12,23 @@ export interface ContextNodeData extends Omit<ContextCardPosition, 'x' | 'y'> {
   [key: string]: any // Index signature for React Flow compatibility
 }
 
+export interface TextBlockNodeData {
+  id: string
+  width: number
+  height: number
+  isMinimized: boolean
+  zIndex: number
+  primaryText: string
+  notesText: string
+  projectId: string
+  [key: string]: any // Index signature for React Flow compatibility
+}
+
 // React Flow node types - use the standard Node type
 export type ChatNode = Node<ChatNodeData>
 export type ContextNode = Node<ContextNodeData>
-export type CanvasNode = ChatNode | ContextNode
+export type TextBlockNode = Node<TextBlockNodeData>
+export type CanvasNode = ChatNode | ContextNode | TextBlockNode
 
 // React Flow edge type (extends the existing Edge interface)
 export interface CanvasEdge extends Edge {
