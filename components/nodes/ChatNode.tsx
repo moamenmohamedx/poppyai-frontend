@@ -4,23 +4,36 @@ import { memo, useState, useEffect } from 'react'
 import { NodeProps, Handle, Position } from '@xyflow/react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { MessageSquare, X, Plus, Send, Paperclip, Globe, FileText, Image, Copy } from 'lucide-react'
+import { MessageSquare, X, Plus, Send, Paperclip, Globe, FileText, Image, Copy, Bot } from 'lucide-react'
 import { useReactFlowStore } from '@/stores/useReactFlowStore'
+import { apiClient } from '@/lib/api/client'
 import { toast } from 'sonner'
 
 interface ChatNodeProps extends NodeProps {
   onNodeContextMenu?: (event: React.MouseEvent) => void
 }
 
-function ChatNode({ data, selected, onNodeContextMenu }: ChatNodeProps) {
+interface Message {
+  id: string
+  type: 'user' | 'ai'
+  content: string
+  timestamp: Date
+}
+
+interface Conversation {
+  id: number
+  title: string
+  messages: Message[]
+}
+
+function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
   const [activeConversation, setActiveConversation] = useState(0)
   const [message, setMessage] = useState('')
-  const [conversations, setConversations] = useState([
+  const [conversations, setConversations] = useState<Conversation[]>([
     { id: 0, title: 'New Chat', messages: [] },
-    { id: 1, title: 'Marketing Strategy', messages: [] },
-    { id: 2, title: 'Product Launch', messages: [] },
   ])
-  const { deleteNode } = useReactFlowStore()
+  const [isLoading, setIsLoading] = useState(false)
+  const { deleteNode, nodes, edges } = useReactFlowStore()
   
   // Keyboard handler for delete
   useEffect(() => {
@@ -40,8 +53,154 @@ function ChatNode({ data, selected, onNodeContextMenu }: ChatNodeProps) {
   }, [selected])
   
   const handleDelete = () => {
-    deleteNode(data.id as string)
+    deleteNode(id)
     toast.success('Node deleted')
+  }
+
+  // Collect context from connected nodes
+  const getConnectedContext = (): string[] => {
+    const currentNodeId = id  // Use the React Flow node ID prop
+    const contextTexts: string[] = []
+    
+    // Get the latest state from the store to ensure fresh data
+    const { nodes: currentNodes, edges: currentEdges } = useReactFlowStore.getState()
+    
+    // Find edges where this chat node is the target
+    const connectedEdges = currentEdges.filter(edge => edge.target === currentNodeId)
+    
+    // Get source nodes for these edges
+    for (const edge of connectedEdges) {
+      const sourceNode = currentNodes.find(node => node.id === edge.source)
+      
+      if (!sourceNode) continue
+      
+      // Extract content based on node type
+      const nodeData = sourceNode.data
+      let textContent = ''
+      
+      if (sourceNode.type === 'textBlockNode') {
+        // Ensure we get the latest text content with proper type checking
+        const primaryText = (typeof nodeData.primaryText === 'string' ? nodeData.primaryText.trim() : '') || ''
+        const notesText = (typeof nodeData.notesText === 'string' ? nodeData.notesText.trim() : '') || ''
+        if (primaryText || notesText) {
+          textContent = `Text Note: ${primaryText}${notesText ? ` | Notes: ${notesText}` : ''}`
+        }
+      } else if (sourceNode.type === 'contextNode') {
+        // Handle context nodes
+        switch (nodeData.type || nodeData.contextType) {
+          case 'text':
+            textContent = `Text: ${nodeData.title || 'Text Note'}: ${nodeData.content || ''}`
+            break
+          case 'video':
+            textContent = `Video: ${nodeData.title || 'Video'} (${nodeData.url || 'No URL'})`
+            break
+          case 'image':
+            textContent = `Image: ${nodeData.alt || 'Image'} - ${nodeData.caption || 'No description'}`
+            break
+          case 'website':
+            textContent = `Website: ${nodeData.title || 'Website'} (${nodeData.url || 'No URL'}) - ${nodeData.description || 'No description'}`
+            break
+          case 'document':
+            textContent = `Document: ${nodeData.name || 'Document'} (${nodeData.type || 'Unknown type'})`
+            break
+          default:
+            textContent = `${nodeData.type || nodeData.contextType}: ${JSON.stringify(nodeData)}`
+        }
+      }
+      
+      if (textContent.trim()) {
+        contextTexts.push(textContent.trim())
+      }
+    }
+    
+    return contextTexts
+  }
+
+  // Handle sending message with API integration
+  const handleSendMessage = async () => {
+    if (!message.trim() || isLoading) return
+
+    const currentMessage = message
+    const currentConv = conversations[activeConversation]
+    if (!currentConv) return
+
+    // Add user message immediately
+    const userMessage: Message = {
+      id: `msg-${Date.now()}`,
+      type: 'user',
+      content: currentMessage,
+      timestamp: new Date(),
+    }
+
+    // Update conversation with user message
+    const updatedConversations = conversations.map((conv, idx) => 
+      idx === activeConversation 
+        ? { ...conv, messages: [...conv.messages, userMessage] }
+        : conv
+    )
+    setConversations(updatedConversations)
+    setMessage('')
+    setIsLoading(true)
+
+    try {
+      // Get connected context
+      const contextTexts = getConnectedContext()
+      
+      // Debug logging
+      console.log('🔍 Context collection result:', {
+        contextCount: contextTexts.length,
+        contextTexts,
+        chatNodeId: id
+      })
+      
+      // Show context status to user
+      if (contextTexts.length > 0) {
+        toast.success(`Using ${contextTexts.length} context item${contextTexts.length > 1 ? 's' : ''}`, {
+          duration: 2000
+        })
+      }
+      
+      // Call API
+      const response = await apiClient.chat({
+        user_message: currentMessage,
+        context_texts: contextTexts
+      })
+
+      // Add AI response
+      const aiMessage: Message = {
+        id: `msg-${Date.now()}-ai`,
+        type: 'ai',
+        content: response.response,
+        timestamp: new Date(),
+      }
+
+      // Update conversation with AI response
+      setConversations(prev => prev.map((conv, idx) => 
+        idx === activeConversation 
+          ? { ...conv, messages: [...conv.messages, aiMessage] }
+          : conv
+      ))
+      
+    } catch (error) {
+      console.error('Chat API Error:', error)
+      toast.error('Failed to get AI response. Please try again.')
+      
+      // Add error message
+      const errorMessage: Message = {
+        id: `msg-${Date.now()}-error`,
+        type: 'ai',
+        content: 'Sorry, I encountered an error while processing your message. Please try again.',
+        timestamp: new Date(),
+      }
+
+      setConversations(prev => prev.map((conv, idx) => 
+        idx === activeConversation 
+          ? { ...conv, messages: [...conv.messages, errorMessage] }
+          : conv
+      ))
+    } finally {
+      setIsLoading(false)
+    }
   }
   
   return (
@@ -143,12 +302,52 @@ function ChatNode({ data, selected, onNodeContextMenu }: ChatNodeProps) {
                         <MessageSquare className="w-6 h-6 text-purple-600 dark:text-purple-400" />
                       </div>
                       <p className="text-gray-600 dark:text-gray-300 font-medium mb-1">Start a new conversation</p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Ask anything or press / for actions</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Connect context nodes and ask anything!</p>
+                      {(() => {
+                        const contextCount = getConnectedContext().length
+                        return contextCount > 0 && (
+                          <div className="mt-3 p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                            <div className="text-xs text-purple-600 dark:text-purple-400 font-medium">
+                              ✓ {contextCount} context item{contextCount > 1 ? 's' : ''} connected
+                            </div>
+                            <div className="text-xs text-purple-500 dark:text-purple-400 mt-1">
+                              Context will be included in your messages
+                            </div>
+                          </div>
+                        )
+                      })()}
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    {/* Messages would be mapped here */}
+                  <div className="space-y-4">
+                    {conversations[activeConversation].messages.map((msg) => (
+                      <div key={msg.id} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        <div
+                          className={`max-w-[85%] px-4 py-2 rounded-lg ${
+                            msg.type === 'user'
+                              ? 'bg-purple-600 text-white'
+                              : 'bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-200 shadow-sm border border-gray-200 dark:border-slate-600'
+                          }`}
+                        >
+                          <div className="text-sm leading-relaxed">{msg.content}</div>
+                          <div className="text-xs opacity-70 mt-1">{msg.timestamp.toLocaleTimeString()}</div>
+                        </div>
+                      </div>
+                    ))}
+                    {isLoading && (
+                      <div className="flex justify-start">
+                        <div className="max-w-[85%] px-4 py-2 rounded-lg bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-200 shadow-sm border border-gray-200 dark:border-slate-600">
+                          <div className="flex items-center space-x-2">
+                            <div className="flex space-x-1">
+                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                            </div>
+                            <span className="text-sm text-gray-500">AI is thinking...</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -187,8 +386,9 @@ function ChatNode({ data, selected, onNodeContextMenu }: ChatNodeProps) {
                       className="flex-1 text-sm bg-transparent outline-none text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500"
                       onClick={(e) => e.stopPropagation()}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter' && message.trim()) {
-                          setMessage('')
+                        if (e.key === 'Enter' && message.trim() && !isLoading) {
+                          e.preventDefault()
+                          handleSendMessage()
                         }
                       }}
                     />
@@ -202,12 +402,9 @@ function ChatNode({ data, selected, onNodeContextMenu }: ChatNodeProps) {
                       <div className="w-px h-5 bg-gray-200 dark:bg-slate-600 mx-1" />
                       <Button 
                         size="sm" 
-                        className="h-8 px-3 bg-purple-600 hover:bg-purple-700 dark:bg-purple-600 dark:hover:bg-purple-700 text-white rounded flex items-center gap-1.5"
-                        onClick={() => {
-                          if (message.trim()) {
-                            setMessage('')
-                          }
-                        }}
+                        disabled={!message.trim() || isLoading}
+                        className="h-8 px-3 bg-purple-600 hover:bg-purple-700 dark:bg-purple-600 dark:hover:bg-purple-700 text-white rounded flex items-center gap-1.5 disabled:opacity-50"
+                        onClick={handleSendMessage}
                       >
                         <Send className="w-3.5 h-3.5" />
                         <span className="text-xs font-medium">Send</span>
