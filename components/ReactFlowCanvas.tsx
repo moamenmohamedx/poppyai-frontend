@@ -120,8 +120,8 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
         pasteNodes(position)
       }
       
-      // Delete: Delete or Backspace
-      if (e.key === 'Delete' || e.key === 'Backspace') {
+      // Delete: Delete
+      if (e.key === 'Delete') {
         e.preventDefault()
         deleteSelectedNodes()
       }
@@ -339,7 +339,7 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
         fitView={false}
         className="dark:bg-black"
         style={{ backgroundColor: currentTheme === 'dark' ? undefined : 'hsl(214.3, 31.8%, 91.4%)' }}
-        deleteKeyCode={["Backspace", "Delete"]}
+        deleteKeyCode={["Delete"]}
         multiSelectionKeyCode={["Meta", "Ctrl"]}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
