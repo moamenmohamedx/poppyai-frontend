@@ -46,7 +46,7 @@ function ContextNode({ data, selected, onNodeContextMenu }: ContextNodeProps) {
   // Keyboard handler for delete
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (selected && (e.key === 'Delete' || e.key === 'Backspace')) {
+      if (selected && e.key === 'Delete') {
         e.preventDefault()
         handleDelete()
       }
