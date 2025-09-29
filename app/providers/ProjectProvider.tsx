@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { useReactFlowStore } from '@/stores/useReactFlowStore'
+import { useProjectStore } from '@/stores/useProjectStore'
 import { useAutoSaveCanvas } from '@/hooks/useAutoSaveCanvas'
 import { loadProjectWithCanvas } from '@/lib/supabase/projects'
 import { ProjectWithCanvas } from '@/lib/supabase/types'
@@ -49,6 +50,17 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       
       if (projectData) {
         setCurrentProject(projectData)
+        
+        // Also update the ProjectStore for compatibility
+        const { setCurrentProject: setProjectStoreProject } = useProjectStore.getState()
+        setProjectStoreProject({
+          id: projectData.id,
+          name: projectData.name,
+          files: [],
+          chats: [],
+          createdAt: new Date(projectData.created_at),
+          updatedAt: new Date(projectData.updated_at)
+        })
         
         // Hydrate React Flow store
         hydrate({

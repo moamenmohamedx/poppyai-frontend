@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { Node, Edge, addEdge, Connection, Viewport } from '@xyflow/react'
 import { ChatNodeData, ContextNodeData, TextBlockNodeData } from '@/types/reactFlowTypes'
 import { toast } from 'sonner'
+import { useProjectStore } from './useProjectStore'
 
 export interface ReactFlowStore {
   // State
@@ -72,7 +73,7 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
           height: 280,
           isMinimized: false,
           zIndex: 1,
-          projectId: 'current-project' // This should come from context
+          projectId: useProjectStore.getState().currentProject?.id || crypto.randomUUID()
         }
       }
       
@@ -99,7 +100,7 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
           zIndex: 1,
           type,
           content: {},
-          projectId: 'current-project' // This should come from context
+          projectId: useProjectStore.getState().currentProject?.id || crypto.randomUUID()
         }
       }
       
@@ -126,7 +127,7 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
           zIndex: 1,
           primaryText: '',
           notesText: '',
-          projectId: 'current-project' // This should come from context
+          projectId: useProjectStore.getState().currentProject?.id || crypto.randomUUID()
         }
       }
       
@@ -209,18 +210,27 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
     
     // Validate connection: only context → chat or textBlock → chat
     if ((sourceNode?.type === 'contextNode' || sourceNode?.type === 'textBlockNode') && targetNode?.type === 'chatNode') {
+      // Determine handle IDs based on node types
+      const sourceHandle = sourceNode?.type === 'textBlockNode' ? 'text-source' : 'context-source'
+      const targetHandle = 'chat-target'
+      
       const newEdge: Edge = {
         id: `edge-${connection.source}-${connection.target}`,
         source: connection.source!,
         target: connection.target!,
+        sourceHandle: sourceHandle,
+        targetHandle: targetHandle,
         type: 'smoothstep',
         animated: true,
         style: {
-          stroke: '#6366f1',
-          strokeWidth: 2,
+          stroke: '#a855f7',
+          strokeWidth: 3,
           strokeDasharray: '5,5'
-        }
+        },
+        className: 'dark:stroke-purple-500'
       }
+      
+      console.log('🔗 Store creating edge:', newEdge)
       
       set(state => ({
         edges: addEdge(newEdge, state.edges)

@@ -1,60 +1,192 @@
 "use client"
 
-import { memo, useState, useEffect } from 'react'
+import { memo, useState, useEffect, useRef } from 'react'
 import { NodeProps, Handle, Position } from '@xyflow/react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { MessageSquare, X, Plus, Send, Paperclip, Globe, FileText, Image, Copy, Bot } from 'lucide-react'
 import { useReactFlowStore } from '@/stores/useReactFlowStore'
+import { useConversationStore } from '@/stores/useConversationStore'
+import { useProjectStore } from '@/stores/useProjectStore'
 import { apiClient } from '@/lib/api/client'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import type { Conversation, Message, UUID } from '../../types/apiTypes'
+import { 
+  createConversation, 
+  getConversationsForNode, 
+  getMessages,
+  updateConversation 
+} from '../../lib/api/conversations'
 
 interface ChatNodeProps extends NodeProps {
   onNodeContextMenu?: (event: React.MouseEvent) => void
 }
 
-interface Message {
-  id: string
-  type: 'user' | 'ai'
-  content: string
-  timestamp: Date
-}
-
-interface Conversation {
-  id: number
-  title: string
-  messages: Message[]
-}
-
 function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
-  const [activeConversation, setActiveConversation] = useState(0)
   const [message, setMessage] = useState('')
-  const [conversations, setConversations] = useState<Conversation[]>([
-    { id: 0, title: 'New Chat', messages: [] },
-  ])
-  const [isLoading, setIsLoading] = useState(false)
-  const { deleteNode, nodes, edges } = useReactFlowStore()
+  const messagesEndRef = useRef<HTMLDivElement>(null)
   
-  // Keyboard handler for delete
+  const { deleteNode } = useReactFlowStore()
+  const conversationStore = useConversationStore()
+  const queryClient = useQueryClient()
+  
+  // Get project ID from node data with safe fallback
+  // First try to get from node data, then from project store, finally generate one
+  const getProjectId = (): UUID => {
+    if (data?.projectId) return String(data.projectId) as UUID
+    
+    const currentProject = useProjectStore.getState().currentProject
+    if (currentProject?.id) return currentProject.id as UUID
+    
+    // As last resort, create a temporary project ID and warn
+    console.warn('No valid project context found, using temporary project ID')
+    return crypto.randomUUID() as UUID
+  }
+  
+  const projectId = getProjectId()
+  const chatNodeId = typeof id === 'string' ? id : String(id ?? '')
+  
+  // Get active conversation ID from store with safety check
+  const activeConversationId = chatNodeId ? conversationStore.getActiveConversation(chatNodeId) : undefined
+  
+  // Fetch conversations for this chat node
+  const { data: conversations = [], isLoading: conversationsLoading } = useQuery({
+    queryKey: ['conversations', chatNodeId],
+    queryFn: () => getConversationsForNode(chatNodeId),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    enabled: !!chatNodeId,
+  })
+  
+  // Fetch messages for active conversation
+  const { data: messages = [], isLoading: messagesLoading } = useQuery({
+    queryKey: ['messages', activeConversationId],
+    queryFn: () => activeConversationId ? getMessages(activeConversationId) : Promise.resolve([]),
+    enabled: !!activeConversationId,
+    staleTime: 30 * 1000, // 30 seconds for messages
+  })
+  
+  // Create conversation mutation
+  const createConversationMutation = useMutation({
+    mutationFn: () => {
+      if (!projectId || !chatNodeId) {
+        throw new Error('Missing required data for conversation creation')
+      }
+      return createConversation({ project_id: projectId, chat_node_id: chatNodeId })
+    },
+    onSuccess: (newConversation) => {
+      conversationStore.setActiveConversation(chatNodeId, newConversation.id)
+      queryClient.invalidateQueries({ queryKey: ['conversations', chatNodeId] })
+      toast.success('New conversation created')
+    },
+    onError: (error) => {
+      console.error('Failed to create conversation:', error)
+      toast.error('Failed to create conversation')
+    }
+  })
+  
+  // Chat mutation with optimistic updates
+  const chatMutation = useMutation({
+    mutationFn: (chatRequest: Parameters<typeof apiClient.chat>[0]) => apiClient.chat(chatRequest),
+    
+    // When mutate is called:
+    onMutate: async (chatRequest) => {
+      // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
+      const messageQueryKey = ['messages', activeConversationId]
+      await queryClient.cancelQueries({ queryKey: messageQueryKey })
+
+      // Snapshot the previous value
+      const previousMessages = queryClient.getQueryData<Message[]>(messageQueryKey) || []
+
+      // Create an optimistic message
+      const optimisticMessage: Message = {
+        id: crypto.randomUUID() as UUID, // Temporary unique ID
+        conversation_id: activeConversationId || 'temp-conversation' as UUID,
+        role: 'user',
+        content: chatRequest.user_message,
+        timestamp: new Date().toISOString(),
+      }
+
+      // Optimistically update to the new value
+      queryClient.setQueryData<Message[]>(messageQueryKey, (old) => [...(old || []), optimisticMessage])
+
+      // Return a context object with the snapshotted value
+      return { previousMessages, messageQueryKey }
+    },
+
+    // If the mutation fails, use the context returned from onMutate to roll back
+    onError: (err, chatRequest, context) => {
+      if (context?.previousMessages) {
+        queryClient.setQueryData<Message[]>(context.messageQueryKey, context.previousMessages)
+        toast.error('Failed to send message. Please try again.')
+      }
+      console.error('Chat API Error:', err)
+    },
+
+    // Always refetch after error or success to sync with the server
+    onSettled: (data) => {
+      // Invalidate messages to get the real message from the server
+      const finalConversationId = data?.conversation_id || activeConversationId
+      if (finalConversationId) {
+        queryClient.invalidateQueries({ queryKey: ['messages', finalConversationId] })
+      }
+      
+      // If a new conversation was created, update the store and invalidate the list
+      if (data && data.conversation_id !== activeConversationId) {
+        conversationStore.setActiveConversation(chatNodeId, data.conversation_id)
+        queryClient.invalidateQueries({ queryKey: ['conversations', chatNodeId] })
+      }
+    },
+  })
+
+  // Auto-scroll to bottom of messages
   useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollTop = messagesEndRef.current.scrollHeight
+    }
+  }, [messages])
+  
+  // Keyboard handler for delete - MUST be called before any conditional returns
+  useEffect(() => {
+    if (!selected) return
+    
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (selected && e.key === 'Delete') {
+      if (e.key === 'Delete') {
         e.preventDefault()
-        handleDelete()
+        deleteNode(id)
+        toast.success('Node deleted')
       }
     }
     
-    if (selected) {
-      document.addEventListener('keydown', handleKeyDown)
-      return () => {
-        document.removeEventListener('keydown', handleKeyDown)
-      }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [selected])
+  }, [selected, id, deleteNode])
   
+  // Handler functions
   const handleDelete = () => {
     deleteNode(id)
     toast.success('Node deleted')
+  }
+  
+  const handleCreateConversation = () => {
+    createConversationMutation.mutate()
+  }
+  
+  const handleSelectConversation = (conversationId: UUID) => {
+    conversationStore.setActiveConversation(chatNodeId, conversationId)
+  }
+  
+  // Early return AFTER all hooks - this is safe
+  if (!chatNodeId || !data) {
+    return (
+      <Card className="w-[700px] h-[700px] bg-white dark:bg-black shadow-lg animate-pulse">
+        <div className="flex items-center justify-center h-full">
+          <div className="text-gray-500">Loading...</div>
+        </div>
+      </Card>
+    )
   }
 
   // Collect context from connected nodes
@@ -65,8 +197,16 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
     // Get the latest state from the store to ensure fresh data
     const { nodes: currentNodes, edges: currentEdges } = useReactFlowStore.getState()
     
+    console.log('🔍 Context collection debug:', {
+      currentNodeId,
+      totalEdges: currentEdges.length,
+      allEdges: currentEdges,
+      totalNodes: currentNodes.length
+    })
+    
     // Find edges where this chat node is the target
     const connectedEdges = currentEdges.filter(edge => edge.target === currentNodeId)
+    console.log('🔗 Connected edges:', connectedEdges)
     
     // Get source nodes for these edges
     for (const edge of connectedEdges) {
@@ -110,97 +250,50 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
       
       if (textContent.trim()) {
         contextTexts.push(textContent.trim())
+        console.log('✅ Added context:', textContent.trim())
+      } else {
+        console.log('❌ No content extracted from node:', sourceNode?.type, sourceNode?.data)
       }
     }
     
+    console.log('📝 Final context texts:', contextTexts)
     return contextTexts
   }
 
   // Handle sending message with API integration
   const handleSendMessage = async () => {
-    if (!message.trim() || isLoading) return
+    if (!message.trim() || chatMutation.isPending || !projectId || !chatNodeId) return
 
     const currentMessage = message
-    const currentConv = conversations[activeConversation]
-    if (!currentConv) return
-
-    // Add user message immediately
-    const userMessage: Message = {
-      id: `msg-${Date.now()}`,
-      type: 'user',
-      content: currentMessage,
-      timestamp: new Date(),
-    }
-
-    // Update conversation with user message
-    const updatedConversations = conversations.map((conv, idx) => 
-      idx === activeConversation 
-        ? { ...conv, messages: [...conv.messages, userMessage] }
-        : conv
-    )
-    setConversations(updatedConversations)
     setMessage('')
-    setIsLoading(true)
 
-    try {
-      // Get connected context
-      const contextTexts = getConnectedContext()
-      
-      // Debug logging
-      console.log('🔍 Context collection result:', {
-        contextCount: contextTexts.length,
-        contextTexts,
-        chatNodeId: id
+    // Get connected context
+    const contextTexts = getConnectedContext()
+    
+    // Debug logging
+    console.log('🔍 Context collection result:', {
+      contextCount: contextTexts.length,
+      contextTexts,
+      chatNodeId: id,
+      projectId,
+      activeConversationId
+    })
+    
+    // Show context status to user
+    if (contextTexts.length > 0) {
+      toast.success(`Using ${contextTexts.length} context item${contextTexts.length > 1 ? 's' : ''}`, {
+        duration: 2000
       })
-      
-      // Show context status to user
-      if (contextTexts.length > 0) {
-        toast.success(`Using ${contextTexts.length} context item${contextTexts.length > 1 ? 's' : ''}`, {
-          duration: 2000
-        })
-      }
-      
-      // Call API
-      const response = await apiClient.chat({
-        user_message: currentMessage,
-        context_texts: contextTexts
-      })
-
-      // Add AI response
-      const aiMessage: Message = {
-        id: `msg-${Date.now()}-ai`,
-        type: 'ai',
-        content: response.response,
-        timestamp: new Date(),
-      }
-
-      // Update conversation with AI response
-      setConversations(prev => prev.map((conv, idx) => 
-        idx === activeConversation 
-          ? { ...conv, messages: [...conv.messages, aiMessage] }
-          : conv
-      ))
-      
-    } catch (error) {
-      console.error('Chat API Error:', error)
-      toast.error('Failed to get AI response. Please try again.')
-      
-      // Add error message
-      const errorMessage: Message = {
-        id: `msg-${Date.now()}-error`,
-        type: 'ai',
-        content: 'Sorry, I encountered an error while processing your message. Please try again.',
-        timestamp: new Date(),
-      }
-
-      setConversations(prev => prev.map((conv, idx) => 
-        idx === activeConversation 
-          ? { ...conv, messages: [...conv.messages, errorMessage] }
-          : conv
-      ))
-    } finally {
-      setIsLoading(false)
     }
+    
+    // Send chat request with all required fields
+    chatMutation.mutate({
+      user_message: currentMessage,
+      context_texts: contextTexts,
+      project_id: projectId,
+      chat_node_id: chatNodeId,
+      conversation_id: activeConversationId // Can be undefined for new conversations
+    })
   }
   
   return (
@@ -211,6 +304,7 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
       >
         {/* Connection handles */}
         <Handle
+          id="chat-target"
           type="target"
           position={Position.Left}
           className="!bg-indigo-600 dark:!bg-purple-500 !border-white dark:!border-slate-900 dark:handle-glow-purple dark:handle-glow-purple-hover"
@@ -232,7 +326,7 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
               variant="ghost"
               size="sm"
               className="h-6 w-6 p-0 hover:bg-purple-200 dark:hover:bg-purple-800/50 rounded"
-              onClick={() => deleteNode(data.id as string)}
+              onClick={handleDelete}
             >
               <X className="w-3.5 h-3.5 text-gray-600 dark:text-purple-400" />
             </Button>
@@ -245,21 +339,22 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
               <div className="p-3">
                 <Button 
                   className="w-full bg-purple-600 hover:bg-purple-700 dark:bg-purple-600 dark:hover:bg-purple-700 text-white font-medium text-sm py-2 rounded-lg shadow-sm"
-                  onClick={() => {
-                    const newId = conversations.length
-                    setConversations([...conversations, { id: newId, title: `New Chat`, messages: [] }])
-                    setActiveConversation(newId)
-                  }}
+                  onClick={handleCreateConversation}
+                  disabled={createConversationMutation.isPending}
                 >
                   <Plus className="w-4 h-4 mr-1.5" />
-                  New Conversation
+                  {createConversationMutation.isPending ? 'Creating...' : 'New Conversation'}
                 </Button>
               </div>
               <div className="px-3 pb-2">
                 <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Previous Conversations</p>
               </div>
               <div className="flex-1 overflow-y-auto px-2 pb-2">
-                {conversations.length === 0 ? (
+                {conversationsLoading ? (
+                  <div className="text-center py-4">
+                    <p className="text-xs text-gray-400 dark:text-gray-500">Loading conversations...</p>
+                  </div>
+                ) : conversations.length === 0 ? (
                   <div className="text-center py-4">
                     <p className="text-xs text-gray-400 dark:text-gray-500">No conversations yet</p>
                   </div>
@@ -267,9 +362,9 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
                   conversations.map((conv) => (
                     <button
                       key={conv.id}
-                      onClick={() => setActiveConversation(conv.id)}
+                      onClick={() => handleSelectConversation(conv.id)}
                       className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-all mb-1 ${
-                        activeConversation === conv.id 
+                        activeConversationId === conv.id 
                           ? 'bg-white dark:bg-slate-800 text-purple-700 dark:text-purple-300 shadow-sm font-medium' 
                           : 'hover:bg-purple-100/50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
                       }`}
@@ -294,8 +389,12 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
               </div>
               
               {/* Messages Area */}
-              <div className="flex-1 p-4 overflow-y-auto">
-                {conversations[activeConversation]?.messages.length === 0 ? (
+              <div ref={messagesEndRef} className="flex-1 p-4 overflow-y-auto">
+                {messagesLoading ? (
+                  <div className="h-full flex items-center justify-center">
+                    <p className="text-gray-500">Loading messages...</p>
+                  </div>
+                ) : messages.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-center">
                     <div className="max-w-sm">
                       <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -320,21 +419,21 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {conversations[activeConversation].messages.map((msg) => (
-                      <div key={msg.id} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    {messages.map((msg) => (
+                      <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                         <div
                           className={`max-w-[85%] px-4 py-2 rounded-lg ${
-                            msg.type === 'user'
+                            msg.role === 'user'
                               ? 'bg-purple-600 text-white'
                               : 'bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-200 shadow-sm border border-gray-200 dark:border-slate-600'
                           }`}
                         >
                           <div className="text-sm leading-relaxed">{msg.content}</div>
-                          <div className="text-xs opacity-70 mt-1">{msg.timestamp.toLocaleTimeString()}</div>
+                          <div className="text-xs opacity-70 mt-1">{new Date(msg.timestamp).toLocaleTimeString()}</div>
                         </div>
                       </div>
                     ))}
-                    {isLoading && (
+                    {chatMutation.isPending && (
                       <div className="flex justify-start">
                         <div className="max-w-[85%] px-4 py-2 rounded-lg bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-200 shadow-sm border border-gray-200 dark:border-slate-600">
                           <div className="flex items-center space-x-2">
@@ -386,7 +485,7 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
                       className="flex-1 text-sm bg-transparent outline-none text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500"
                       onClick={(e) => e.stopPropagation()}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter' && message.trim() && !isLoading) {
+                        if (e.key === 'Enter' && message.trim() && !chatMutation.isPending) {
                           e.preventDefault()
                           handleSendMessage()
                         }
@@ -402,7 +501,7 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
                       <div className="w-px h-5 bg-gray-200 dark:bg-slate-600 mx-1" />
                       <Button 
                         size="sm" 
-                        disabled={!message.trim() || isLoading}
+                        disabled={!message.trim() || chatMutation.isPending}
                         className="h-8 px-3 bg-purple-600 hover:bg-purple-700 dark:bg-purple-600 dark:hover:bg-purple-700 text-white rounded flex items-center gap-1.5 disabled:opacity-50"
                         onClick={handleSendMessage}
                       >

@@ -1,10 +1,16 @@
+import { UUID } from '../../types/apiTypes'
+
 export interface ChatRequest {
   user_message: string;
   context_texts: string[];
+  project_id: UUID;        // Passed from ChatNode data
+  chat_node_id: string;    // The React Flow node ID
+  conversation_id?: UUID;  // Can be null/undefined for a new conversation
 }
 
 export interface ChatResponse {
   response: string;
+  conversation_id: UUID; // Always returns the conversation ID
 }
 
 class ApiClient {
@@ -21,7 +27,13 @@ class ApiClient {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(request),
+        body: JSON.stringify({
+          user_message: request.user_message,
+          context_texts: request.context_texts,
+          project_id: request.project_id,
+          chat_node_id: request.chat_node_id,
+          conversation_id: request.conversation_id
+        }),
       });
 
       if (!response.ok) {

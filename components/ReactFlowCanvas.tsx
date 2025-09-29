@@ -144,34 +144,10 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
     setEdges(updatedEdges)
   }, [edges, setEdges])
 
-  // Handle new connections with store sync
-  const handleConnect = useCallback((connection: Connection) => {
-    const sourceNode = nodes.find(n => n.id === connection.source)
-    const targetNode = nodes.find(n => n.id === connection.target)
-    
-    // Validate connection: only context → chat or textBlock → chat
-    if ((sourceNode?.type === 'contextNode' || sourceNode?.type === 'textBlockNode') && targetNode?.type === 'chatNode') {
-      const newEdge: Edge = {
-        id: `edge-${connection.source}-${connection.target}`,
-        source: connection.source!,
-        target: connection.target!,
-        type: 'smoothstep',
-        animated: true,
-        style: {
-          stroke: '#a855f7',
-          strokeWidth: 2,
-          strokeDasharray: '5,5'
-        }, 
-        className: 'dark:stroke-purple-500'
-      }
-      
-      const updatedEdges = addEdge(newEdge, edges)
-      setEdges(updatedEdges)
-    }
-  }, [nodes, edges, setEdges])
+  // Connection handling is now done by the store's onConnect method
 
   // Connection validation
-  const isValidConnection = useCallback((connection: Connection) => {
+  const isValidConnection = useCallback((connection: Connection | Edge) => {
     const sourceNode = nodes.find(n => n.id === connection.source)
     const targetNode = nodes.find(n => n.id === connection.target)
     
@@ -331,7 +307,8 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
         edges={edges}
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
-        onConnect={handleConnect}
+        onConnect={onConnect}
+        isValidConnection={isValidConnection}
         onViewportChange={handleViewportChange}
         onPaneContextMenu={handlePaneContextMenu}
         nodeTypes={nodeTypes}

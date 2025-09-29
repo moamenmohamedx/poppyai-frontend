@@ -113,6 +113,7 @@ function TextBlockNode({ data, selected, onNodeContextMenu }: TextBlockNodeProps
         </Card>
         
         <Handle
+          id="text-source"
           type="source" 
           position={Position.Right}
           className="!bg-indigo-600 dark:!bg-purple-500 !border-white dark:!border-slate-900"

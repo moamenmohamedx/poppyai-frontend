@@ -107,6 +107,7 @@ function ContextNode({ data, selected, onNodeContextMenu }: ContextNodeProps) {
         </Card>
         
         <Handle
+          id="context-source"
           type="source"
           position={Position.Right}
           className="!bg-green-600 dark:!bg-cyan-500 !border-white dark:!border-slate-900 dark:handle-glow-cyan dark:handle-glow-cyan-hover"
