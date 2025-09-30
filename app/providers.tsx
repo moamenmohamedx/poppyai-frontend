@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ThemeProvider } from '@/components/theme-provider'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
@@ -24,6 +24,20 @@ export function Providers({ children }: { children: React.ReactNode }) {
       },
     },
   }))
+
+  // Expose queryClient globally for cache cleanup operations
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).queryClient = queryClient
+      console.log('✅ QueryClient exposed globally for cache management')
+    }
+    
+    return () => {
+      if (typeof window !== 'undefined') {
+        delete (window as any).queryClient
+      }
+    }
+  }, [queryClient])
 
   return (
     <QueryClientProvider client={queryClient}>

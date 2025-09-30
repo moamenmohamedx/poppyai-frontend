@@ -76,9 +76,12 @@ export interface Database {
 // Persisted types for React Flow
 export interface PersistedNode {
   id: string
-  type: 'chatNode' | 'contextNode'
+  type: 'chatNode' | 'contextNode' | 'textBlockNode'
   position: { x: number; y: number }
   data: {
+    // CRITICAL: Project linkage - required for all nodes
+    projectId: string
+    
     // Common fields
     width: number
     height: number
@@ -97,6 +100,10 @@ export interface PersistedNode {
       timestamp: string
       citations?: string[]
     }>
+    
+    // Text block node specific
+    primaryText?: string
+    notesText?: string
   }
 }
 

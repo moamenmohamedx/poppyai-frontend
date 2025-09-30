@@ -81,6 +81,12 @@ export default function ReactFlowContextLibrary({ projectId, onToggleCollapse, i
   const { addContextNode, addChatNode, addTextBlockNode } = useReactFlowStore()
 
   const handleAddCard = (cardType: (typeof cardTypes)[0]) => {
+    // Validate projectId before creating nodes
+    if (!projectId || projectId.trim() === '') {
+      console.error('[ReactFlowContextLibrary] Cannot add node: projectId is missing')
+      return
+    }
+    
     // Get the React Flow wrapper element to calculate viewport center
     const reactFlowWrapper = document.querySelector('.react-flow')
     const viewportElement = document.querySelector('.react-flow__viewport') as HTMLElement
@@ -89,11 +95,11 @@ export default function ReactFlowContextLibrary({ projectId, onToggleCollapse, i
       // Fallback if elements not found
       const fallbackPosition = { x: 400, y: 200 }
       if (cardType.type === "ai-chat") {
-        addChatNode(fallbackPosition)
+        addChatNode(fallbackPosition, projectId)
       } else if (cardType.type === "text") {
-        addTextBlockNode(fallbackPosition)
+        addTextBlockNode(fallbackPosition, projectId)
       } else {
-        addContextNode(cardType.type, fallbackPosition)
+        addContextNode(cardType.type, fallbackPosition, projectId)
       }
       return
     }
@@ -126,11 +132,11 @@ export default function ReactFlowContextLibrary({ projectId, onToggleCollapse, i
     }
     
     if (cardType.type === "ai-chat") {
-      addChatNode(position)
+      addChatNode(position, projectId)
     } else if (cardType.type === "text") {
-      addTextBlockNode(position)
+      addTextBlockNode(position, projectId)
     } else {
-      addContextNode(cardType.type, position)
+      addContextNode(cardType.type, position, projectId)
     }
   }
 

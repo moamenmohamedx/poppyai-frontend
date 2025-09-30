@@ -31,17 +31,23 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
   const conversationStore = useConversationStore()
   const queryClient = useQueryClient()
   
-  // Get project ID from node data with safe fallback
-  // First try to get from node data, then from project store, finally generate one
-  const getProjectId = (): UUID => {
-    if (data?.projectId) return String(data.projectId) as UUID
+  // Get project ID from node data - STRICT validation, no fallbacks!
+  const getProjectId = (): UUID | null => {
+    // Primary source: node data (set when node is created)
+    if (data?.projectId && String(data.projectId).trim() !== '') {
+      return String(data.projectId) as UUID
+    }
     
+    // Secondary source: project store (backward compatibility)
     const currentProject = useProjectStore.getState().currentProject
-    if (currentProject?.id) return currentProject.id as UUID
+    if (currentProject?.id && String(currentProject.id).trim() !== '') {
+      console.warn('[ChatNode] Using projectId from store - node data should contain projectId')
+      return currentProject.id as UUID
+    }
     
-    // As last resort, create a temporary project ID and warn
-    console.warn('No valid project context found, using temporary project ID')
-    return crypto.randomUUID() as UUID
+    // NO FALLBACK - return null to indicate missing projectId
+    console.error('[ChatNode] CRITICAL: No valid projectId found for chat node', { nodeId: id, data })
+    return null
   }
   
   const projectId = getProjectId()
@@ -69,8 +75,12 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
   // Create conversation mutation
   const createConversationMutation = useMutation({
     mutationFn: () => {
-      if (!projectId || !chatNodeId) {
-        throw new Error('Missing required data for conversation creation')
+      // Strict validation
+      if (!chatNodeId || chatNodeId.trim() === '') {
+        throw new Error('Missing chat node ID for conversation creation')
+      }
+      if (!projectId || projectId.trim() === '') {
+        throw new Error('Missing project ID for conversation creation - node is not linked to a project')
       }
       return createConversation({ project_id: projectId, chat_node_id: chatNodeId })
     },
@@ -188,6 +198,40 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
       </Card>
     )
   }
+  
+  // Critical validation: projectId must exist
+  if (!projectId) {
+    return (
+      <Card className="w-[700px] h-[700px] bg-red-50 dark:bg-red-900/20 border-2 border-red-500 shadow-lg">
+        <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+          <div className="w-16 h-16 bg-red-100 dark:bg-red-900/40 rounded-full flex items-center justify-center mb-4">
+            <X className="w-8 h-8 text-red-600 dark:text-red-400" />
+          </div>
+          <h3 className="text-lg font-semibold text-red-900 dark:text-red-300 mb-2">
+            Configuration Error
+          </h3>
+          <p className="text-sm text-red-700 dark:text-red-400 mb-4">
+            This chat node is not linked to a valid project.
+          </p>
+          <p className="text-xs text-red-600 dark:text-red-500 mb-4">
+            Node ID: {chatNodeId}
+          </p>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => deleteNode(id)}
+            className="mt-2"
+          >
+            Delete Invalid Node
+          </Button>
+          <p className="text-xs text-red-600 dark:text-red-500 mt-4 max-w-md">
+            This usually happens when a node was created before a project was loaded. 
+            Please delete this node and create a new one.
+          </p>
+        </div>
+      </Card>
+    )
+  }
 
   // Collect context from connected nodes
   const getConnectedContext = (): string[] => {
@@ -262,7 +306,16 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
 
   // Handle sending message with API integration
   const handleSendMessage = async () => {
-    if (!message.trim() || chatMutation.isPending || !projectId || !chatNodeId) return
+    // Strict validation - no messages without valid projectId
+    if (!message.trim() || chatMutation.isPending || !chatNodeId) return
+    
+    if (!projectId || projectId.trim() === '') {
+      toast.error('Cannot send message: No project context', {
+        description: 'This node is not properly linked to a project'
+      })
+      console.error('[ChatNode] Attempted to send message without valid projectId')
+      return
+    }
 
     const currentMessage = message
     setMessage('')

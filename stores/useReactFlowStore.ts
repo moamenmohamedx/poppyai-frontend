@@ -2,7 +2,6 @@ import { create } from 'zustand'
 import { Node, Edge, addEdge, Connection, Viewport } from '@xyflow/react'
 import { ChatNodeData, ContextNodeData, TextBlockNodeData } from '@/types/reactFlowTypes'
 import { toast } from 'sonner'
-import { useProjectStore } from './useProjectStore'
 
 export interface ReactFlowStore {
   // State
@@ -11,11 +10,11 @@ export interface ReactFlowStore {
   viewport: Viewport
   
   // Node management
-  addChatNode: (position: { x: number; y: number }) => void
-  addContextNode: (type: 'ai-chat' | 'video' | 'image' | 'text' | 'website' | 'document', position: { x: number; y: number }) => void
-  addTextBlockNode: (position: { x: number; y: number }) => void
+  addChatNode: (position: { x: number; y: number }, projectId: string) => void
+  addContextNode: (type: 'ai-chat' | 'video' | 'image' | 'text' | 'website' | 'document', position: { x: number; y: number }, projectId: string) => void
+  addTextBlockNode: (position: { x: number; y: number }, projectId: string) => void
   updateNode: (id: string, updates: Partial<Node>) => void
-  deleteNode: (id: string) => void
+  deleteNode: (id: string) => Promise<void>
   
   // Edge management  
   addEdge: (edge: Edge) => void
@@ -40,7 +39,7 @@ export interface ReactFlowStore {
   copiedEdges: Edge[]
   copyNodes: (nodes: Node[]) => void
   pasteNodes: (position: { x: number, y: number }) => void
-  deleteSelectedNodes: () => void
+  deleteSelectedNodes: () => Promise<void>
 
   // Internal counters
   chatNodeCount: number
@@ -59,7 +58,16 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
   copiedNodes: [],
   copiedEdges: [],
   
-  addChatNode: (position) => {
+  addChatNode: (position, projectId) => {
+    // Validate projectId is provided
+    if (!projectId || projectId.trim() === '') {
+      toast.error('Cannot create node: No active project', {
+        description: 'Please ensure a project is loaded first'
+      })
+      console.error('[useReactFlowStore] addChatNode called without valid projectId')
+      return
+    }
+    
     set(state => {
       const newCount = state.chatNodeCount + 1
       const id = `chat-node-${newCount}`
@@ -73,9 +81,11 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
           height: 280,
           isMinimized: false,
           zIndex: 1,
-          projectId: useProjectStore.getState().currentProject?.id || crypto.randomUUID()
+          projectId: projectId  // Use provided projectId - no fallback!
         }
       }
+      
+      console.log(`[useReactFlowStore] Created chat node ${id} for project ${projectId}`)
       
       return {
         nodes: [...state.nodes, newNode],
@@ -84,7 +94,16 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
     })
   },
   
-  addContextNode: (type, position) => {
+  addContextNode: (type, position, projectId) => {
+    // Validate projectId is provided
+    if (!projectId || projectId.trim() === '') {
+      toast.error('Cannot create node: No active project', {
+        description: 'Please ensure a project is loaded first'
+      })
+      console.error('[useReactFlowStore] addContextNode called without valid projectId')
+      return
+    }
+    
     set(state => {
       const newCount = state.contextNodeCount + 1
       const id = `context-node-${newCount}`
@@ -100,9 +119,11 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
           zIndex: 1,
           type,
           content: {},
-          projectId: useProjectStore.getState().currentProject?.id || crypto.randomUUID()
+          projectId: projectId  // Use provided projectId - no fallback!
         }
       }
+      
+      console.log(`[useReactFlowStore] Created context node ${id} for project ${projectId}`)
       
       return {
         nodes: [...state.nodes, newNode],
@@ -111,7 +132,16 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
     })
   },
   
-  addTextBlockNode: (position) => {
+  addTextBlockNode: (position, projectId) => {
+    // Validate projectId is provided
+    if (!projectId || projectId.trim() === '') {
+      toast.error('Cannot create node: No active project', {
+        description: 'Please ensure a project is loaded first'
+      })
+      console.error('[useReactFlowStore] addTextBlockNode called without valid projectId')
+      return
+    }
+    
     set(state => {
       const newCount = state.textBlockNodeCount + 1
       const id = `text-block-node-${newCount}`
@@ -127,9 +157,11 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
           zIndex: 1,
           primaryText: '',
           notesText: '',
-          projectId: useProjectStore.getState().currentProject?.id || crypto.randomUUID()
+          projectId: projectId  // Use provided projectId - no fallback!
         }
       }
+      
+      console.log(`[useReactFlowStore] Created text block node ${id} for project ${projectId}`)
       
       return {
         nodes: [...state.nodes, newNode],
@@ -146,7 +178,59 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
     }))
   },
   
-  deleteNode: (id) => {
+  deleteNode: async (id) => {
+    const state = get()
+    const nodeToDelete = state.nodes.find(node => node.id === id)
+    
+    // If it's a chat node, call backend API to delete conversations and messages
+    if (nodeToDelete?.type === 'chatNode') {
+      const backendUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000'
+      
+      try {
+        const response = await fetch(`${backendUrl}/api/chat-nodes/${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        })
+
+        if (response.ok) {
+          const result = await response.json()
+          console.log(`✅ Backend cleanup: ${result.deleted_conversations} conversations and ${result.deleted_messages} messages deleted`)
+        } else {
+          console.warn('Backend cleanup failed for chat node, but continuing with node deletion')
+        }
+      } catch (backendError) {
+        // Log but don't fail - backend might be offline
+        console.warn('Backend API unavailable for chat node cleanup:', backendError)
+      }
+      
+      // ⚠️ CRITICAL: Clear frontend caches for this chat node
+      // This prevents showing stale messages when creating new nodes
+      try {
+        // Import conversation store dynamically to avoid circular dependencies
+        const { useConversationStore } = await import('./useConversationStore')
+        
+        // Clear conversation store mapping
+        useConversationStore.getState().clearConversation(id)
+        console.log(`✅ Cleared conversation store for chat node: ${id}`)
+        
+        // Clear React Query cache (if queryClient is available globally)
+        if (typeof window !== 'undefined' && (window as any).queryClient) {
+          const queryClient = (window as any).queryClient
+          
+          // Remove all queries related to this chat node
+          queryClient.removeQueries({ queryKey: ['conversations', id] })
+          queryClient.removeQueries({ queryKey: ['messages'] }) // Clear all message caches to be safe
+          
+          console.log(`✅ Cleared React Query cache for chat node: ${id}`)
+        }
+      } catch (cleanupError) {
+        console.warn('Frontend cache cleanup failed:', cleanupError)
+      }
+    }
+    
+    // Remove node and connected edges from canvas
     set(state => ({
       nodes: state.nodes.filter(node => node.id !== id),
       edges: state.edges.filter(edge => edge.source !== id && edge.target !== id)
@@ -324,20 +408,16 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
     })
   },
 
-  deleteSelectedNodes: () => {
-    const { nodes, edges } = get()
+  deleteSelectedNodes: async () => {
+    const { nodes, deleteNode } = get()
     const selectedNodes = nodes.filter(node => node.selected)
     
     if (selectedNodes.length === 0) return
     
-    const selectedNodeIds = selectedNodes.map(n => n.id)
-    
-    set(state => ({
-      nodes: state.nodes.filter(node => !selectedNodeIds.includes(node.id)),
-      edges: state.edges.filter(edge => 
-        !selectedNodeIds.includes(edge.source) && !selectedNodeIds.includes(edge.target)
-      )
-    }))
+    // Delete each node individually to ensure backend cleanup for chat nodes
+    for (const node of selectedNodes) {
+      await deleteNode(node.id)
+    }
     
     toast.success(`Deleted ${selectedNodes.length} node${selectedNodes.length > 1 ? 's' : ''}`, {
       duration: 3000,

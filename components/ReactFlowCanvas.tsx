@@ -159,6 +159,12 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
     const bounds = reactFlowWrapper.current?.getBoundingClientRect()
     if (!bounds) return
 
+    // Validate projectId is available before creating nodes
+    if (!projectId || projectId.trim() === '') {
+      console.error('[ReactFlowCanvas] Cannot add node: projectId is missing')
+      return
+    }
+
     try {
       const position = screenToFlowPosition({
         x: bounds.width / 2 - 200,
@@ -166,24 +172,17 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
       })
 
       if (type === 'chat') {
-        addChatNode(position)
+        addChatNode(position, projectId)
       } else if (type === 'textBlock') {
-        addTextBlockNode(position)
+        addTextBlockNode(position, projectId)
       } else {
-        addContextNode(contextType as any, position)
+        addContextNode(contextType as any, position, projectId)
       }
     } catch (error) {
-      // Fallback to default position if project fails
-      const fallbackPosition = { x: 250, y: 150 }
-      if (type === 'chat') {
-        addChatNode(fallbackPosition)
-      } else if (type === 'textBlock') {
-        addTextBlockNode(fallbackPosition)
-      } else {
-        addContextNode(contextType as any, fallbackPosition)
-      }
+      console.error('[ReactFlowCanvas] Error adding node:', error)
+      // Note: Removed fallback - we require valid projectId
     }
-  }, [screenToFlowPosition, addChatNode, addContextNode, addTextBlockNode])
+  }, [screenToFlowPosition, addChatNode, addContextNode, addTextBlockNode, projectId])
 
   // Handle file drag and drop
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -205,6 +204,12 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
 
     if (!reactFlowWrapper.current) return
 
+    // Validate projectId is available before creating nodes
+    if (!projectId || projectId.trim() === '') {
+      console.error('[ReactFlowCanvas] Cannot drop files: projectId is missing')
+      return
+    }
+
     const bounds = reactFlowWrapper.current.getBoundingClientRect()
     
     try {
@@ -221,22 +226,13 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
         else if (file.type.startsWith('video/')) contextType = 'video'
         else if (file.type === 'text/plain') contextType = 'text'
 
-        addContextNode(contextType as any, position)
+        addContextNode(contextType as any, position, projectId)
       })
     } catch (error) {
-      // Fallback to default position if project fails
-      const files = Array.from(e.dataTransfer.files)
-      files.forEach((file, index) => {
-        let contextType: string = 'document'
-        
-        if (file.type.startsWith('image/')) contextType = 'image'
-        else if (file.type.startsWith('video/')) contextType = 'video'
-        else if (file.type === 'text/plain') contextType = 'text'
-
-        addContextNode(contextType as any, { x: 100 + index * 50, y: 100 + index * 50 })
-      })
+      console.error('[ReactFlowCanvas] Error dropping files:', error)
+      // Note: Removed fallback - we require valid projectId
     }
-  }, [screenToFlowPosition, addContextNode])
+  }, [screenToFlowPosition, addContextNode, projectId])
 
   
   // Handle viewport changes

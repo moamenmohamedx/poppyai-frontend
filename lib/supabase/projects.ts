@@ -10,18 +10,35 @@ export const cleanNodesForPersistence = (nodes: Node[]): PersistedNode[] => {
       ? (data.contextType || data.type) as ('ai-chat' | 'video' | 'image' | 'text' | 'website' | 'document')
       : undefined
     
+    // Extract and validate projectId
+    const projectId = String(data.projectId || '')
+    if (!projectId || projectId.trim() === '') {
+      console.error(`[cleanNodesForPersistence] Node ${id} missing projectId - this should not happen!`, { id, type, data })
+      // This is a critical validation failure, but we'll allow it through with empty string
+      // The backend will reject it if used for conversation creation
+    }
+    
+    // Extract text block fields with proper type conversion
+    const primaryText = typeof data.primaryText === 'string' ? data.primaryText : undefined
+    const notesText = typeof data.notesText === 'string' ? data.notesText : undefined
+    
     return {
       id,
-      type: type as 'chatNode' | 'contextNode',
+      type: type as 'chatNode' | 'contextNode' | 'textBlockNode',
       position,
       data: {
+        // ⚠️ CRITICAL: Preserve projectId for conversation linkage
+        projectId: projectId,
         width: typeof data.width === 'number' ? data.width : 400,
         height: typeof data.height === 'number' ? data.height : 280,
         isMinimized: typeof data.isMinimized === 'boolean' ? data.isMinimized : false,
         zIndex: typeof data.zIndex === 'number' ? data.zIndex : 1,
         contextType,
         content: data.content || undefined,
-        messages: Array.isArray(data.messages) ? data.messages : undefined
+        messages: Array.isArray(data.messages) ? data.messages : undefined,
+        // For text block nodes - properly typed
+        primaryText,
+        notesText
       }
     }
   })
@@ -228,12 +245,37 @@ export const deleteProject = async (projectId: string) => {
   }
 
   try {
+    // Step 1: Call backend API to delete conversations and messages
+    const backendUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000'
+    
+    try {
+      const response = await fetch(`${backendUrl}/api/projects/${projectId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        console.warn('Backend cleanup failed, but continuing with project deletion')
+      } else {
+        const result = await response.json()
+        console.log(`✅ Backend cleanup: ${result.deleted_conversations} conversations deleted`)
+      }
+    } catch (backendError) {
+      // Log but don't fail - backend might be offline
+      console.warn('Backend API unavailable for cleanup:', backendError)
+    }
+
+    // Step 2: Delete project from Supabase (cascades to canvas_states via ON DELETE CASCADE)
     const { error } = await supabase
       .from('projects')
       .delete()
       .eq('id', projectId)
 
     if (error) throw error
+    
+    console.log(`✅ Project ${projectId} deleted successfully`)
     return true
   } catch (error) {
     console.error('Error deleting project:', error)
