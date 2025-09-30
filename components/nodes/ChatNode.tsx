@@ -8,7 +8,6 @@ import { MessageSquare, X, Plus, Send, Paperclip, Globe, FileText, Image, Copy, 
 import { useReactFlowStore } from '@/stores/useReactFlowStore'
 import { useConversationStore } from '@/stores/useConversationStore'
 import { useProjectStore } from '@/stores/useProjectStore'
-import { apiClient } from '@/lib/api/client'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { Conversation, Message, UUID } from '../../types/apiTypes'
@@ -18,6 +17,7 @@ import {
   getMessages,
   updateConversation 
 } from '../../lib/api/conversations'
+import { useStreamingChat } from '@/hooks/useStreamingChat'
 
 interface ChatNodeProps extends NodeProps {
   onNodeContextMenu?: (event: React.MouseEvent) => void
@@ -84,69 +84,44 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
       }
       return createConversation({ project_id: projectId, chat_node_id: chatNodeId })
     },
-    onSuccess: (newConversation) => {
+    onSuccess: (newConversation: Conversation) => {
       conversationStore.setActiveConversation(chatNodeId, newConversation.id)
       queryClient.invalidateQueries({ queryKey: ['conversations', chatNodeId] })
       toast.success('New conversation created')
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       console.error('Failed to create conversation:', error)
       toast.error('Failed to create conversation')
     }
   })
   
-  // Chat mutation with optimistic updates
-  const chatMutation = useMutation({
-    mutationFn: (chatRequest: Parameters<typeof apiClient.chat>[0]) => apiClient.chat(chatRequest),
-    
-    // When mutate is called:
-    onMutate: async (chatRequest) => {
-      // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
-      const messageQueryKey = ['messages', activeConversationId]
-      await queryClient.cancelQueries({ queryKey: messageQueryKey })
+  // Streaming chat hook - replaces chatMutation
+  const {
+    isStreaming,
+    streamedText,
+    currentConversationId: streamConversationId,
+    startStreaming,
+    cancelStreaming
+  } = useStreamingChat({
+    onComplete: async (fullResponse, conversationId, messageId) => {
+      console.log('🎉 Stream complete, refetching messages...')
 
-      // Snapshot the previous value
-      const previousMessages = queryClient.getQueryData<Message[]>(messageQueryKey) || []
+      // Refetch messages (invalidates cache and fetches in one operation)
+      await queryClient.refetchQueries({ queryKey: ['messages', conversationId] })
 
-      // Create an optimistic message
-      const optimisticMessage: Message = {
-        id: crypto.randomUUID() as UUID, // Temporary unique ID
-        conversation_id: activeConversationId || 'temp-conversation' as UUID,
-        role: 'user',
-        content: chatRequest.user_message,
-        timestamp: new Date().toISOString(),
-      }
+      console.log('✅ Messages refetched successfully')
 
-      // Optimistically update to the new value
-      queryClient.setQueryData<Message[]>(messageQueryKey, (old) => [...(old || []), optimisticMessage])
-
-      // Return a context object with the snapshotted value
-      return { previousMessages, messageQueryKey }
-    },
-
-    // If the mutation fails, use the context returned from onMutate to roll back
-    onError: (err, chatRequest, context) => {
-      if (context?.previousMessages) {
-        queryClient.setQueryData<Message[]>(context.messageQueryKey, context.previousMessages)
-        toast.error('Failed to send message. Please try again.')
-      }
-      console.error('Chat API Error:', err)
-    },
-
-    // Always refetch after error or success to sync with the server
-    onSettled: (data) => {
-      // Invalidate messages to get the real message from the server
-      const finalConversationId = data?.conversation_id || activeConversationId
-      if (finalConversationId) {
-        queryClient.invalidateQueries({ queryKey: ['messages', finalConversationId] })
-      }
-      
-      // If a new conversation was created, update the store and invalidate the list
-      if (data && data.conversation_id !== activeConversationId) {
-        conversationStore.setActiveConversation(chatNodeId, data.conversation_id)
+      // Update active conversation if it changed (new conversation created)
+      if (conversationId !== activeConversationId) {
+        conversationStore.setActiveConversation(chatNodeId, conversationId)
         queryClient.invalidateQueries({ queryKey: ['conversations', chatNodeId] })
       }
+
+      toast.success('✅ Response complete')
     },
+    onError: (error) => {
+      toast.error(`❌ ${error}`)
+    }
   })
 
   // Auto-scroll to bottom of messages
@@ -304,10 +279,10 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
     return contextTexts
   }
 
-  // Handle sending message with API integration
+  // Handle sending message with streaming
   const handleSendMessage = async () => {
     // Strict validation - no messages without valid projectId
-    if (!message.trim() || chatMutation.isPending || !chatNodeId) return
+    if (!message.trim() || isStreaming || !chatNodeId) return
     
     if (!projectId || projectId.trim() === '') {
       toast.error('Cannot send message: No project context', {
@@ -339,8 +314,26 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
       })
     }
     
-    // Send chat request with all required fields
-    chatMutation.mutate({
+    // OPTIMISTIC UPDATE: Add user message to UI immediately
+    if (activeConversationId) {
+      const messageQueryKey = ['messages', activeConversationId]
+      const optimisticUserMessage: Message = {
+        id: crypto.randomUUID() as UUID,
+        conversation_id: activeConversationId,
+        role: 'user',
+        content: currentMessage,
+        timestamp: new Date().toISOString(),
+      }
+      
+      // Add optimistic message to cache
+      queryClient.setQueryData<Message[]>(messageQueryKey, (old) => [
+        ...(old || []),
+        optimisticUserMessage
+      ])
+    }
+    
+    // Start streaming chat request
+    startStreaming({
       user_message: currentMessage,
       context_texts: contextTexts,
       project_id: projectId,
@@ -472,6 +465,7 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
                   </div>
                 ) : (
                   <div className="space-y-4">
+                    {/* Existing messages */}
                     {messages.map((msg) => (
                       <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                         <div
@@ -481,12 +475,27 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
                               : 'bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-200 shadow-sm border border-gray-200 dark:border-slate-600'
                           }`}
                         >
-                          <div className="text-sm leading-relaxed">{msg.content}</div>
+                          <div className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</div>
                           <div className="text-xs opacity-70 mt-1">{new Date(msg.timestamp).toLocaleTimeString()}</div>
                         </div>
                       </div>
                     ))}
-                    {chatMutation.isPending && (
+                    
+                    {/* Streaming message with animated cursor */}
+                    {isStreaming && streamedText && (
+                      <div className="flex justify-start">
+                        <div className="max-w-[85%] px-4 py-2 rounded-lg bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-200 shadow-sm border border-gray-200 dark:border-slate-600">
+                          <div className="text-sm leading-relaxed whitespace-pre-wrap">
+                            {streamedText}
+                            <span className="inline-block w-2 h-4 ml-1 bg-purple-600 animate-pulse" />
+                          </div>
+                          <div className="text-xs opacity-70 mt-1">Streaming...</div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Loading state before first token */}
+                    {isStreaming && !streamedText && (
                       <div className="flex justify-start">
                         <div className="max-w-[85%] px-4 py-2 rounded-lg bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-200 shadow-sm border border-gray-200 dark:border-slate-600">
                           <div className="flex items-center space-x-2">
@@ -538,7 +547,7 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
                       className="flex-1 text-sm bg-transparent outline-none text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500"
                       onClick={(e) => e.stopPropagation()}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter' && message.trim() && !chatMutation.isPending) {
+                        if (e.key === 'Enter' && message.trim() && !isStreaming) {
                           e.preventDefault()
                           handleSendMessage()
                         }
@@ -554,12 +563,21 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
                       <div className="w-px h-5 bg-gray-200 dark:bg-slate-600 mx-1" />
                       <Button 
                         size="sm" 
-                        disabled={!message.trim() || chatMutation.isPending}
+                        disabled={!message.trim() && !isStreaming}
                         className="h-8 px-3 bg-purple-600 hover:bg-purple-700 dark:bg-purple-600 dark:hover:bg-purple-700 text-white rounded flex items-center gap-1.5 disabled:opacity-50"
-                        onClick={handleSendMessage}
+                        onClick={isStreaming ? cancelStreaming : handleSendMessage}
                       >
-                        <Send className="w-3.5 h-3.5" />
-                        <span className="text-xs font-medium">Send</span>
+                        {isStreaming ? (
+                          <>
+                            <X className="w-3.5 h-3.5" />
+                            <span className="text-xs font-medium">Stop</span>
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-3.5 h-3.5" />
+                            <span className="text-xs font-medium">Send</span>
+                          </>
+                        )}
                       </Button>
                     </div>
                   </div>
