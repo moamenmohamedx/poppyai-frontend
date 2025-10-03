@@ -2,6 +2,20 @@ import { UUID, Conversation, Message } from '../../types/apiTypes'
 
 const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000'
 
+// Get auth headers helper
+function getAuthHeaders(): HeadersInit {
+  const token = localStorage.getItem('printer_auth_token')
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+  }
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+
+  return headers
+}
+
 // Conversation CRUD Operations
 
 export async function createConversation(payload: { 
@@ -11,9 +25,7 @@ export async function createConversation(payload: {
   try {
     const response = await fetch(`${baseUrl}/api/conversations`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
       body: JSON.stringify(payload),
     })
 
@@ -33,9 +45,7 @@ export async function getConversationsForNode(chat_node_id: string): Promise<Con
   try {
     const response = await fetch(`${baseUrl}/api/conversations/node/${encodeURIComponent(chat_node_id)}`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
     })
 
     if (!response.ok) {
@@ -54,9 +64,7 @@ export async function getMessages(conversation_id: UUID): Promise<Message[]> {
   try {
     const response = await fetch(`${baseUrl}/api/messages/${conversation_id}`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
     })
 
     if (!response.ok) {
@@ -78,9 +86,7 @@ export async function updateConversation(payload: {
   try {
     const response = await fetch(`${baseUrl}/api/conversations/${payload.conversation_id}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
       body: JSON.stringify({ title: payload.title }),
     })
 
@@ -100,9 +106,7 @@ export async function deleteConversation(conversation_id: UUID): Promise<void> {
   try {
     const response = await fetch(`${baseUrl}/api/conversations/${conversation_id}`, {
       method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
     })
 
     if (!response.ok) {
@@ -123,9 +127,7 @@ export async function getConversationsForProject(project_id: UUID): Promise<Conv
   try {
     const response = await fetch(`${baseUrl}/api/conversations/project/${project_id}`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
     })
 
     if (!response.ok) {
@@ -144,9 +146,7 @@ export async function getConversation(conversation_id: UUID): Promise<Conversati
   try {
     const response = await fetch(`${baseUrl}/api/conversations/${conversation_id}`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
     })
 
     if (!response.ok) {
@@ -165,9 +165,7 @@ export async function deleteMessage(message_id: UUID): Promise<void> {
   try {
     const response = await fetch(`${baseUrl}/api/messages/${message_id}`, {
       method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
     })
 
     if (!response.ok) {

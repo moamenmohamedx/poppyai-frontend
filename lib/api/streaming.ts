@@ -126,11 +126,18 @@ export function streamChat(
    */
   const startStreaming = async () => {
     try {
+      // Get auth token
+      const token = localStorage.getItem('printer_auth_token')
+      if (!token) {
+        throw new Error('No authentication token found')
+      }
+
       // Initiate streaming request
       const response = await fetch(`${baseUrl}/api/chat/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify(request),
         signal: abortController.signal, // Enable cancellation

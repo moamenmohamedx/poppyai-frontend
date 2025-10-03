@@ -70,13 +70,21 @@ export const createProject = async (name: string, description?: string) => {
   }
 
   try {
-    // 1. Create project
+    // Get authenticated user
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    
+    if (userError || !user) {
+      throw new Error('User not authenticated')
+    }
+
+    // 1. Create project with user_id
     const { data: project, error: projectError } = await supabase
       .from('projects')
       .insert({
         name,
         description,
-        viewport: { x: 0, y: 0, zoom: 1 }
+        viewport: { x: 0, y: 0, zoom: 1 },
+        user_id: user.id
       })
       .select()
       .single()
@@ -245,15 +253,24 @@ export const deleteProject = async (projectId: string) => {
   }
 
   try {
+    // Get auth token
+    const token = localStorage.getItem('printer_auth_token')
+    
     // Step 1: Call backend API to delete conversations and messages
     const backendUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000'
     
     try {
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      }
+      
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+      
       const response = await fetch(`${backendUrl}/api/projects/${projectId}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
       })
 
       if (!response.ok) {

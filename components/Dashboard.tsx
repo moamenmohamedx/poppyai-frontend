@@ -19,6 +19,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import ThemeToggle from "./ThemeToggle"
+import { useAuthStore } from "@/stores/useAuthStore"
+import { useRouter } from "next/navigation"
 
 interface DashboardProps {
   onCreateProject: (projectId: string) => void
@@ -44,6 +46,8 @@ function formatRelativeTime(dateString: string): string {
 }
 
 export default function Dashboard({ onCreateProject, onOpenProject }: DashboardProps) {
+  const router = useRouter()
+  const { logout } = useAuthStore()
   const [showProfileDropdown, setShowProfileDropdown] = useState(false)
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false)
   const [projects, setProjects] = useState<ProjectWithCanvas[]>([])
@@ -163,7 +167,9 @@ export default function Dashboard({ onCreateProject, onOpenProject }: DashboardP
                     className="w-full px-4 py-2.5 text-left text-sm font-medium text-slate-700 dark:text-purple-300 hover:bg-slate-50 dark:hover:bg-white/10 transition-colors duration-150 flex items-center gap-2"
                     onClick={() => {
                       setShowProfileDropdown(false)
-                      // Handle sign out logic here
+                      logout()
+                      toast.success('Signed out successfully')
+                      router.push('/auth/login')
                     }}
                   >
                     <span>Sign Out</span>

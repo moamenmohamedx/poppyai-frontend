@@ -3,6 +3,25 @@
 import { useState, useEffect } from 'react'
 import { ThemeProvider } from '@/components/theme-provider'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { useAuthStore } from '@/stores/useAuthStore'
+
+function AuthInitializer({ children }: { children: React.ReactNode }) {
+  const { initializeAuth } = useAuthStore()
+  const [initialized, setInitialized] = useState(false)
+
+  useEffect(() => {
+    // Restore auth state from localStorage on mount
+    initializeAuth()
+    setInitialized(true)
+  }, [initializeAuth])
+
+  // Don't render children until auth is initialized
+  if (!initialized) {
+    return null  // Or a loading spinner
+  }
+
+  return <>{children}</>
+}
 
 export function Providers({ children }: { children: React.ReactNode }) {
   // Create QueryClient inside the component to avoid serialization issues
@@ -47,7 +66,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
         enableSystem
         disableTransitionOnChange
       >
-        {children}
+        <AuthInitializer>
+          {children}
+        </AuthInitializer>
       </ThemeProvider>
     </QueryClientProvider>
   )
