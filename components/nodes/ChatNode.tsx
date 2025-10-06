@@ -208,75 +208,24 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
     )
   }
 
-  // Collect context from connected nodes
-  const getConnectedContext = (): string[] => {
-    const currentNodeId = id  // Use the React Flow node ID prop
-    const contextTexts: string[] = []
+  // Collect context node IDs from connected nodes
+  const getConnectedContextNodeIds = (): string[] => {
+    const currentNodeId = id
+    const nodeIds: string[] = []
     
-    // Get the latest state from the store to ensure fresh data
-    const { nodes: currentNodes, edges: currentEdges } = useReactFlowStore.getState()
-    
-    console.log('🔍 Context collection debug:', {
-      currentNodeId,
-      totalEdges: currentEdges.length,
-      allEdges: currentEdges,
-      totalNodes: currentNodes.length
-    })
+    // Get fresh data from store
+    const { edges } = useReactFlowStore.getState()
     
     // Find edges where this chat node is the target
-    const connectedEdges = currentEdges.filter(edge => edge.target === currentNodeId)
-    console.log('🔗 Connected edges:', connectedEdges)
+    const connectedEdges = edges.filter(edge => edge.target === currentNodeId)
     
-    // Get source nodes for these edges
+    // Extract source node IDs
     for (const edge of connectedEdges) {
-      const sourceNode = currentNodes.find(node => node.id === edge.source)
-      
-      if (!sourceNode) continue
-      
-      // Extract content based on node type
-      const nodeData = sourceNode.data
-      let textContent = ''
-      
-      if (sourceNode.type === 'textBlockNode') {
-        // Ensure we get the latest text content with proper type checking
-        const primaryText = (typeof nodeData.primaryText === 'string' ? nodeData.primaryText.trim() : '') || ''
-        const notesText = (typeof nodeData.notesText === 'string' ? nodeData.notesText.trim() : '') || ''
-        if (primaryText || notesText) {
-          textContent = `Text Note: ${primaryText}${notesText ? ` | Notes: ${notesText}` : ''}`
-        }
-      } else if (sourceNode.type === 'contextNode') {
-        // Handle context nodes
-        switch (nodeData.type || nodeData.contextType) {
-          case 'text':
-            textContent = `Text: ${nodeData.title || 'Text Note'}: ${nodeData.content || ''}`
-            break
-          case 'video':
-            textContent = `Video: ${nodeData.title || 'Video'} (${nodeData.url || 'No URL'})`
-            break
-          case 'image':
-            textContent = `Image: ${nodeData.alt || 'Image'} - ${nodeData.caption || 'No description'}`
-            break
-          case 'website':
-            textContent = `Website: ${nodeData.title || 'Website'} (${nodeData.url || 'No URL'}) - ${nodeData.description || 'No description'}`
-            break
-          case 'document':
-            textContent = `Document: ${nodeData.name || 'Document'} (${nodeData.type || 'Unknown type'})`
-            break
-          default:
-            textContent = `${nodeData.type || nodeData.contextType}: ${JSON.stringify(nodeData)}`
-        }
-      }
-      
-      if (textContent.trim()) {
-        contextTexts.push(textContent.trim())
-        console.log('✅ Added context:', textContent.trim())
-      } else {
-        console.log('❌ No content extracted from node:', sourceNode?.type, sourceNode?.data)
-      }
+      nodeIds.push(edge.source)
     }
     
-    console.log('📝 Final context texts:', contextTexts)
-    return contextTexts
+    console.log(`📎 Collected ${nodeIds.length} context node IDs:`, nodeIds)
+    return nodeIds
   }
 
   // Handle sending message with streaming
@@ -295,21 +244,21 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
     const currentMessage = message
     setMessage('')
 
-    // Get connected context
-    const contextTexts = getConnectedContext()
+    // Get connected context node IDs
+    const contextNodeIds = getConnectedContextNodeIds()
     
     // Debug logging
     console.log('🔍 Context collection result:', {
-      contextCount: contextTexts.length,
-      contextTexts,
+      contextCount: contextNodeIds.length,
+      contextNodeIds,
       chatNodeId: id,
       projectId,
       activeConversationId
     })
     
     // Show context status to user
-    if (contextTexts.length > 0) {
-      toast.success(`Using ${contextTexts.length} context item${contextTexts.length > 1 ? 's' : ''}`, {
+    if (contextNodeIds.length > 0) {
+      toast.success(`Using ${contextNodeIds.length} context item${contextNodeIds.length > 1 ? 's' : ''}`, {
         duration: 2000
       })
     }
@@ -335,7 +284,7 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
     // Start streaming chat request
     startStreaming({
       user_message: currentMessage,
-      context_texts: contextTexts,
+      context_node_ids: contextNodeIds,
       project_id: projectId,
       chat_node_id: chatNodeId,
       conversation_id: activeConversationId // Can be undefined for new conversations
@@ -449,7 +398,7 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
                       <p className="text-gray-600 dark:text-gray-300 font-medium mb-1">Start a new conversation</p>
                       <p className="text-sm text-gray-500 dark:text-gray-400">Connect context nodes and ask anything!</p>
                       {(() => {
-                        const contextCount = getConnectedContext().length
+                        const contextCount = getConnectedContextNodeIds().length
                         return contextCount > 0 && (
                           <div className="mt-3 p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
                             <div className="text-xs text-purple-600 dark:text-purple-400 font-medium">

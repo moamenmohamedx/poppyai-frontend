@@ -15,7 +15,7 @@ import { UUID } from '../../types/apiTypes'
  */
 export interface StreamingChatRequest {
   user_message: string
-  context_texts: string[]
+  context_node_ids: string[]
   project_id: UUID
   chat_node_id: string
   conversation_id?: UUID
