@@ -27,6 +27,7 @@ import { useTheme } from 'next-themes'
 import ChatNode from './nodes/ChatNode'
 import ContextNode from './nodes/ContextNode'
 import TextBlockNode from './nodes/TextBlockNode'
+import GoogleContextNode from './nodes/GoogleContextNode'
 import { useReactFlowStore } from '@/stores/useReactFlowStore'
 
 interface ReactFlowCanvasProps {
@@ -38,6 +39,7 @@ const createNodeTypes = (onContextMenu: (event: MouseEvent | React.MouseEvent) =
   chatNode: (props: any) => <ChatNode {...props} onNodeContextMenu={onContextMenu} />,
   contextNode: (props: any) => <ContextNode {...props} onNodeContextMenu={onContextMenu} />,
   textBlockNode: (props: any) => <TextBlockNode {...props} onNodeContextMenu={onContextMenu} />,
+  googleContextNode: (props: any) => <GoogleContextNode {...props} />,
 })
 
 function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {

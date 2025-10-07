@@ -1,5 +1,6 @@
-import { Node, Edge } from '@xyflow/react'
+import { Node, Edge, NodeProps } from '@xyflow/react'
 import { ChatCardPosition, ContextCardPosition } from '@/stores/useCanvasStore'
+import { GoogleContextNodeData } from './googleTypes'
 
 // React Flow node data interfaces with index signatures for React Flow compatibility
 export interface ChatNodeData extends Omit<ChatCardPosition, 'x' | 'y'> {
@@ -28,7 +29,11 @@ export interface TextBlockNodeData {
 export type ChatNode = Node<ChatNodeData>
 export type ContextNode = Node<ContextNodeData>
 export type TextBlockNode = Node<TextBlockNodeData>
-export type CanvasNode = ChatNode | ContextNode | TextBlockNode
+export type GoogleContextNode = Node<GoogleContextNodeData>
+export type CanvasNode = ChatNode | ContextNode | TextBlockNode | GoogleContextNode
+
+// Node props types
+export type GoogleContextNodeProps = NodeProps<GoogleContextNode>
 
 // React Flow edge type (extends the existing Edge interface)
 export interface CanvasEdge extends Edge {

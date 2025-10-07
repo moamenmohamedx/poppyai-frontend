@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { Node, Edge, addEdge, Connection, Viewport } from '@xyflow/react'
-import { ChatNodeData, ContextNodeData, TextBlockNodeData } from '@/types/reactFlowTypes'
+import { ChatNodeData, ContextNodeData, TextBlockNodeData, GoogleContextNode } from '@/types/reactFlowTypes'
+import { GoogleContextNodeData } from '@/types/googleTypes'
 import { toast } from 'sonner'
 
 export interface ReactFlowStore {
@@ -13,6 +14,7 @@ export interface ReactFlowStore {
   addChatNode: (position: { x: number; y: number }, projectId: string) => void
   addContextNode: (type: 'ai-chat' | 'video' | 'image' | 'text' | 'website' | 'document', position: { x: number; y: number }, projectId: string) => void
   addTextBlockNode: (position: { x: number; y: number }, projectId: string) => void
+  addGoogleContextNode: (position: { x: number; y: number }, projectId: string) => void
   updateNode: (id: string, updates: Partial<Node>) => void
   deleteNode: (id: string) => Promise<void>
   
@@ -45,6 +47,7 @@ export interface ReactFlowStore {
   chatNodeCount: number
   contextNodeCount: number
   textBlockNodeCount: number
+  googleContextNodeCount: number
 }
 
 export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
@@ -55,6 +58,7 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
   chatNodeCount: 0,
   contextNodeCount: 0,
   textBlockNodeCount: 0,
+  googleContextNodeCount: 0,
   copiedNodes: [],
   copiedEdges: [],
   
@@ -169,6 +173,44 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
       }
     })
   },
+
+  addGoogleContextNode: (position, projectId) => {
+    // Validate projectId is provided
+    if (!projectId || projectId.trim() === '') {
+      toast.error('Cannot create node: No active project', {
+        description: 'Please ensure a project is loaded first'
+      })
+      console.error('[useReactFlowStore] addGoogleContextNode called without valid projectId')
+      return
+    }
+    
+    set(state => {
+      const newCount = state.googleContextNodeCount + 1
+      const id = `google-context-${Date.now()}`
+      const newNode: GoogleContextNode = {
+        id,
+        type: 'googleContextNode',
+        position,
+        data: {
+          googleLink: '',
+          documentType: null,
+          documentTitle: null,
+          selectedSheet: null,
+          availableSheets: [],
+          lastFetched: null,
+          error: null,
+          isLoading: false,
+        }
+      }
+      
+      console.log(`[useReactFlowStore] Created Google context node ${id} for project ${projectId}`)
+      
+      return {
+        nodes: [...state.nodes, newNode],
+        googleContextNodeCount: newCount
+      }
+    })
+  },
   
   updateNode: (id, updates) => {
     set(state => ({
@@ -258,7 +300,7 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
   },
   
   resetCanvas: () => {
-    set({ nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 }, chatNodeCount: 0, contextNodeCount: 0, textBlockNodeCount: 0 })
+    set({ nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 }, chatNodeCount: 0, contextNodeCount: 0, textBlockNodeCount: 0, googleContextNodeCount: 0 })
   },
   
   setViewport: (viewport) => {
@@ -284,7 +326,16 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
       }
     })
     
-    set({ nodes, edges, viewport, chatNodeCount: maxChatId, contextNodeCount: maxContextId, textBlockNodeCount: maxTextBlockId })
+    // Track Google context nodes
+    let maxGoogleContextId = 0
+    nodes.forEach(node => {
+      if (node.type === 'googleContextNode') {
+        const timestamp = parseInt(node.id.split('-')[2], 10)
+        if (timestamp > maxGoogleContextId) maxGoogleContextId = timestamp
+      }
+    })
+    
+    set({ nodes, edges, viewport, chatNodeCount: maxChatId, contextNodeCount: maxContextId, textBlockNodeCount: maxTextBlockId, googleContextNodeCount: maxGoogleContextId })
   },
   
   onConnect: (connection) => {
