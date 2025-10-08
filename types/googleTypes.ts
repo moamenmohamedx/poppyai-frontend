@@ -1,11 +1,16 @@
 /**
- * Type definitions for Google Docs/Sheets integration
+ * Type definitions for Google Docs/Sheets integration (OAuth only)
  */
 
 export type GoogleDocType = 'docs' | 'sheets'
 
 export interface GoogleContextNodeData {
-  googleLink: string
+  // OAuth-based fields
+  documentId?: string           // Google file ID
+  mimeType?: string            // Google MIME type
+  content?: string             // Pre-fetched Markdown content
+
+  // Common fields
   documentType: GoogleDocType | null
   documentTitle: string | null
   selectedSheet: string | null  // "All Sheets" or specific sheet name
@@ -13,24 +18,7 @@ export interface GoogleContextNodeData {
   lastFetched: string | null  // ISO timestamp
   error: string | null
   isLoading: boolean
+  isFetchingDocuments?: boolean // Loading documents list
+
   [key: string]: any  // Index signature for React Flow compatibility
-}
-
-export interface ValidateResponse {
-  is_valid: boolean
-  type?: GoogleDocType
-  document_id?: string
-  sheet_id?: string
-  error?: string
-}
-
-export interface MetadataResponse {
-  title: string
-  type: GoogleDocType
-  sheet_names?: string[]
-}
-
-export interface ContentResponse {
-  content: string
-  format: 'markdown'
 }

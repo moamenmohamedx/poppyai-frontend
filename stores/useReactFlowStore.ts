@@ -183,7 +183,7 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
       console.error('[useReactFlowStore] addGoogleContextNode called without valid projectId')
       return
     }
-    
+
     set(state => {
       const newCount = state.googleContextNodeCount + 1
       const id = `google-context-${Date.now()}`
@@ -192,7 +192,12 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
         type: 'googleContextNode',
         position,
         data: {
-          googleLink: '',
+          // OAuth-based fields
+          documentId: undefined,
+          mimeType: undefined,
+          content: undefined,
+
+          // Common fields
           documentType: null,
           documentTitle: null,
           selectedSheet: null,
@@ -200,11 +205,13 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
           lastFetched: null,
           error: null,
           isLoading: false,
+          isFetchingDocuments: false,
+          projectId: projectId, // CRITICAL: Assign projectId to the node data
         }
       }
-      
+
       console.log(`[useReactFlowStore] Created Google context node ${id} for project ${projectId}`)
-      
+
       return {
         nodes: [...state.nodes, newNode],
         googleContextNodeCount: newCount
@@ -343,10 +350,10 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
     const sourceNode = nodes.find(n => n.id === connection.source)
     const targetNode = nodes.find(n => n.id === connection.target)
     
-    // Validate connection: only context → chat or textBlock → chat
-    if ((sourceNode?.type === 'contextNode' || sourceNode?.type === 'textBlockNode') && targetNode?.type === 'chatNode') {
+    // Validate connection: only context → chat or textBlock → chat or googleContext → chat
+    if ((sourceNode?.type === 'contextNode' || sourceNode?.type === 'textBlockNode' || sourceNode?.type === 'googleContextNode') && targetNode?.type === 'chatNode') {
       // Determine handle IDs based on node types
-      const sourceHandle = sourceNode?.type === 'textBlockNode' ? 'text-source' : 'context-source'
+      const sourceHandle = sourceNode?.type === 'textBlockNode' ? 'text-source' : sourceNode?.type === 'googleContextNode' ? 'google-source' : 'context-source'
       const targetHandle = 'chat-target'
       
       const newEdge: Edge = {

@@ -74,11 +74,19 @@ const cardTypes = [
     color: "text-indigo-600 bg-indigo-50 border-indigo-200 dark:text-indigo-400 dark:bg-indigo-900/30 dark:border-indigo-500/30",
     hoverColor: "hover:bg-indigo-100 dark:hover:bg-indigo-900/50",
   },
+  {
+    type: "google-drive" as const,
+    icon: FileText,
+    title: "Google Drive",
+    description: "Add Google Docs or Sheets",
+    color: "text-yellow-600 bg-yellow-50 border-yellow-200 dark:text-yellow-400 dark:bg-yellow-900/30 dark:border-yellow-500/30",
+    hoverColor: "hover:bg-yellow-100 dark:hover:bg-yellow-900/50",
+  },
 ]
 
 export default function ReactFlowContextLibrary({ projectId, onToggleCollapse, isCollapsed }: ReactFlowContextLibraryProps) {
   const [searchQuery, setSearchQuery] = useState("")
-  const { addContextNode, addChatNode, addTextBlockNode } = useReactFlowStore()
+  const { addContextNode, addChatNode, addTextBlockNode, addGoogleContextNode } = useReactFlowStore()
 
   const handleAddCard = (cardType: (typeof cardTypes)[0]) => {
     // Validate projectId before creating nodes
@@ -98,6 +106,8 @@ export default function ReactFlowContextLibrary({ projectId, onToggleCollapse, i
         addChatNode(fallbackPosition, projectId)
       } else if (cardType.type === "text") {
         addTextBlockNode(fallbackPosition, projectId)
+      } else if (cardType.type === "google-drive") {
+        addGoogleContextNode(fallbackPosition, projectId)
       } else {
         addContextNode(cardType.type, fallbackPosition, projectId)
       }
@@ -135,6 +145,8 @@ export default function ReactFlowContextLibrary({ projectId, onToggleCollapse, i
       addChatNode(position, projectId)
     } else if (cardType.type === "text") {
       addTextBlockNode(position, projectId)
+    } else if (cardType.type === "google-drive") {
+      addGoogleContextNode(position, projectId)
     } else {
       addContextNode(cardType.type, position, projectId)
     }

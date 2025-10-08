@@ -39,7 +39,7 @@ const createNodeTypes = (onContextMenu: (event: MouseEvent | React.MouseEvent) =
   chatNode: (props: any) => <ChatNode {...props} onNodeContextMenu={onContextMenu} />,
   contextNode: (props: any) => <ContextNode {...props} onNodeContextMenu={onContextMenu} />,
   textBlockNode: (props: any) => <TextBlockNode {...props} onNodeContextMenu={onContextMenu} />,
-  googleContextNode: (props: any) => <GoogleContextNode {...props} />,
+  googleContextNode: (props: any) => <GoogleContextNode {...props} onNodeContextMenu={onContextMenu} />,
 })
 
 function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
@@ -153,7 +153,7 @@ function ReactFlowCanvasInner({ projectId }: ReactFlowCanvasProps) {
     const sourceNode = nodes.find(n => n.id === connection.source)
     const targetNode = nodes.find(n => n.id === connection.target)
     
-    return (sourceNode?.type === 'contextNode' || sourceNode?.type === 'textBlockNode') && targetNode?.type === 'chatNode'
+    return (sourceNode?.type === 'contextNode' || sourceNode?.type === 'textBlockNode' || sourceNode?.type === 'googleContextNode') && targetNode?.type === 'chatNode'
   }, [nodes])
 
   // Add node at center of viewport

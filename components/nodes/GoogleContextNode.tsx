@@ -1,103 +1,196 @@
 "use client"
 
+/**
+ * GoogleContextNode - OAuth 2.0 enabled Google Drive integration
+ *
+ * UI Flow:
+ * 1. Connect Button → initiateGoogleOAuth()
+ * 2. OAuth popup → User authorizes
+ * 3. Fetching Documents → fetchUserDocuments()
+ * 4. Document Picker Dropdown → User selects
+ * 5. Loading Content → fetchDocumentContentById()
+ * 6. Success → Content stored in node.data.content
+ */
+
 import { memo, useState, useCallback, useEffect } from 'react'
 import { NodeProps, Handle, Position, useReactFlow } from '@xyflow/react'
 import { Card } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Loader2, FileText, Sheet, AlertCircle, X } from 'lucide-react'
+import { Loader2, FileText, Sheet, AlertCircle, X, Link as LinkIcon } from 'lucide-react'
 import { toast } from 'sonner'
-import { useGoogleMetadata } from '@/hooks/useGoogleContent'
-import { validateGoogleLink } from '@/lib/api/google'
-import { GoogleContextNodeData, GoogleDocType } from '@/types/googleTypes'
+import {
+  initiateGoogleOAuth,
+  fetchUserDocuments,
+  fetchDocumentContentById,
+  checkGoogleAuth,
+  GoogleDocument,
+} from '@/lib/google-oauth'
+import { GoogleContextNodeData } from '@/types/googleTypes'
 
 interface GoogleContextNodeProps extends NodeProps {
   data: GoogleContextNodeData
+  onNodeContextMenu?: (event: React.MouseEvent) => void
 }
 
-function GoogleContextNode({ id, data, selected }: GoogleContextNodeProps) {
+function GoogleContextNode({ id, data, selected, onNodeContextMenu }: GoogleContextNodeProps) {
   const { updateNodeData, deleteElements } = useReactFlow()
-  const [localLink, setLocalLink] = useState(data.googleLink || '')
-  const [isValidating, setIsValidating] = useState(false)
+  const [documents, setDocuments] = useState<GoogleDocument[]>([])
 
-  // Fetch metadata when link is validated
-  const { data: metadata, isLoading: isLoadingMeta, error: metadataError } = useGoogleMetadata(
-    data.googleLink,
-    data.documentType || 'docs',
-    { enabled: !!data.googleLink && !!data.documentType }
-  )
-
-  // Update node data when metadata is fetched
-  useEffect(() => {
-    if (metadata && !data.documentTitle) {
-      updateNodeData(id, {
-        documentTitle: metadata.title,
-        availableSheets: metadata.sheet_names || [],
-        selectedSheet: metadata.sheet_names ? 'All Sheets' : null,
-        error: null,
-        isLoading: false,
-      })
-    }
-  }, [metadata, id, data.documentTitle, updateNodeData])
-
-  // Handle metadata error
-  useEffect(() => {
-    if (metadataError) {
-      updateNodeData(id, {
-        error: metadataError.message || 'Failed to fetch document metadata',
-        isLoading: false,
-      })
-    }
-  }, [metadataError, id, updateNodeData])
-
-  // Handle link validation on blur
-  const handleLinkBlur = useCallback(async () => {
-    if (!localLink || localLink === data.googleLink) return
-
-    setIsValidating(true)
+  // Handle OAuth connection
+  const handleConnect = useCallback(async () => {
     updateNodeData(id, { isLoading: true, error: null })
 
     try {
-      const result = await validateGoogleLink(localLink)
+      // NEW: Check OAuth status first
+      // CRITICAL: Wrap in try-catch to handle checkGoogleAuth() failures gracefully
+      let isAuthenticated = false
+      try {
+        const status = await checkGoogleAuth()
+        isAuthenticated = status.is_authenticated
+      } catch (statusError) {
+        // If status check fails (network error, backend down), assume NOT authenticated
+        // This ensures we still show OAuth popup to user rather than failing silently
+        console.warn('OAuth status check failed, assuming not authenticated:', statusError)
+        isAuthenticated = false
+      }
 
-      if (result.is_valid && result.type) {
+      if (!isAuthenticated) {
+        // User NOT authenticated → open OAuth popup
+        await initiateGoogleOAuth()
+
+        // Small delay to ensure tokens are committed to database
+        await new Promise(resolve => setTimeout(resolve, 500))
+      }
+      // else: User already authenticated → skip OAuth, proceed to fetch
+
+      // Mark as fetching documents
+      updateNodeData(id, { isFetchingDocuments: true })
+
+      // Fetch user's documents (this call already handles authentication)
+      const docs = await fetchUserDocuments()
+      setDocuments(docs)
+
+      updateNodeData(id, {
+        isLoading: false,
+        isFetchingDocuments: false,
+      })
+
+      toast.success('Connected to Google Drive successfully')
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to connect'
+
+      // Handle specific errors
+      if (errorMessage === 'NOT_AUTHENTICATED_WITH_GOOGLE') {
         updateNodeData(id, {
-          googleLink: localLink,
-          documentType: result.type as GoogleDocType,
-          isLoading: true, // Keep loading until metadata is fetched
-          error: null,
+          error: 'Not authenticated with Google. Please try connecting again.',
+          isLoading: false,
+          isFetchingDocuments: false,
         })
-        toast.success('Google link validated successfully')
+      } else if (errorMessage === 'OAuth cancelled') {
+        updateNodeData(id, {
+          error: null, // Don't show error for user cancellation
+          isLoading: false,
+          isFetchingDocuments: false,
+        })
+        toast.info('OAuth cancelled')
       } else {
         updateNodeData(id, {
-          error: result.error || 'Invalid Google Docs or Sheets URL',
+          error: errorMessage,
           isLoading: false,
+          isFetchingDocuments: false,
         })
-        toast.error('Invalid Google link')
+        toast.error(errorMessage)
       }
+    }
+  }, [id, updateNodeData])
+
+  // Handle document selection
+  const handleDocumentSelect = useCallback(async (documentId: string) => {
+    const selectedDoc = documents.find(doc => doc.id === documentId)
+    if (!selectedDoc) return
+
+    updateNodeData(id, { isLoading: true, error: null })
+
+    try {
+      // Fetch document content
+      const { content, sheet_names } = await fetchDocumentContentById(
+        documentId,
+        selectedDoc.type
+      )
+
+      // Update node with full data
+      updateNodeData(id, {
+        documentId: selectedDoc.id,
+        documentTitle: selectedDoc.name,
+        documentType: selectedDoc.type,
+        mimeType: selectedDoc.mimeType,
+        content,
+        availableSheets: sheet_names || [],
+        selectedSheet: sheet_names ? 'All Sheets' : null,
+        lastFetched: new Date().toISOString(),
+        isLoading: false,
+        error: null,
+      })
+
+      toast.success(`Loaded: ${selectedDoc.name}`)
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to validate link'
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch content'
       updateNodeData(id, {
         error: errorMessage,
         isLoading: false,
       })
       toast.error(errorMessage)
-    } finally {
-      setIsValidating(false)
     }
-  }, [localLink, data.googleLink, id, updateNodeData])
+  }, [documents, id, updateNodeData])
 
-  // Handle sheet selection
-  const handleSheetChange = useCallback((value: string) => {
-    updateNodeData(id, { selectedSheet: value })
-  }, [id, updateNodeData])
+  // Handle sheet selection (for Sheets documents)
+  const handleSheetChange = useCallback(async (value: string) => {
+    updateNodeData(id, { selectedSheet: value, isLoading: true })
+
+    try {
+      // Re-fetch content with specific sheet
+      if (data.documentId && data.documentType) {
+        const { content } = await fetchDocumentContentById(
+          data.documentId,
+          data.documentType
+        )
+
+        updateNodeData(id, {
+          content,
+          selectedSheet: value,
+          lastFetched: new Date().toISOString(),
+          isLoading: false,
+        })
+      }
+    } catch (error) {
+      updateNodeData(id, { isLoading: false })
+      toast.error('Failed to fetch sheet content')
+    }
+  }, [id, data.documentId, data.documentType, updateNodeData])
 
   // Handle delete
   const handleDelete = useCallback(() => {
     deleteElements({ nodes: [{ id }] })
     toast.success('Google context node deleted')
   }, [id, deleteElements])
+
+  // Handle try again
+  const handleTryAgain = useCallback(() => {
+    setDocuments([])
+    updateNodeData(id, {
+      documentId: undefined,
+      documentTitle: null,
+      documentType: null,
+      mimeType: undefined,
+      content: undefined,
+      selectedSheet: null,
+      availableSheets: [],
+      error: null,
+      isLoading: false,
+      isFetchingDocuments: false,
+    })
+  }, [id, updateNodeData])
 
   // Keyboard handler for delete
   useEffect(() => {
@@ -116,24 +209,10 @@ function GoogleContextNode({ id, data, selected }: GoogleContextNodeProps) {
     }
   }, [selected, handleDelete])
 
-  // Handle Try Again
-  const handleTryAgain = useCallback(() => {
-    setLocalLink('')
-    updateNodeData(id, {
-      googleLink: '',
-      documentType: null,
-      error: null,
-      documentTitle: null,
-      availableSheets: [],
-      selectedSheet: null,
-      isLoading: false,
-    })
-  }, [id, updateNodeData])
-
-  const isLoading = data.isLoading || isLoadingMeta || isValidating
+  const isLoading = data.isLoading || data.isFetchingDocuments
 
   return (
-    <div>
+    <div onContextMenu={onNodeContextMenu}>
       <Card
         className="w-[400px] h-[280px] shadow-lg border-2 border-border bg-white dark:bg-slate-800"
         onClick={(e) => e.stopPropagation()}
@@ -144,9 +223,9 @@ function GoogleContextNode({ id, data, selected }: GoogleContextNodeProps) {
             <div className="flex items-center gap-2">
               {data.documentType === 'docs' && <FileText className="w-5 h-5 text-blue-500" />}
               {data.documentType === 'sheets' && <Sheet className="w-5 h-5 text-green-500" />}
-              {!data.documentType && <FileText className="w-5 h-5 text-gray-400" />}
+              {!data.documentType && <LinkIcon className="w-5 h-5 text-yellow-500" />}
               <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-                Google Context
+                Google Drive
               </h3>
             </div>
             <Button
@@ -161,24 +240,17 @@ function GoogleContextNode({ id, data, selected }: GoogleContextNodeProps) {
 
           {/* Content */}
           <div className="flex-1 flex flex-col gap-3 overflow-hidden">
-            {/* Initial State - Link Input */}
-            {!data.documentType && !isLoading && (
-              <div className="space-y-2">
-                <Input
-                  className="nodrag text-sm"
-                  placeholder="Paste Google Docs or Sheets link..."
-                  value={localLink}
-                  onChange={(e) => setLocalLink(e.target.value)}
-                  onBlur={handleLinkBlur}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.currentTarget.blur()
-                    }
-                  }}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Ensure the link is publicly viewable or shared
-                </p>
+            {/* Initial State - Connect Button */}
+            {!data.documentId && documents.length === 0 && !isLoading && !data.error && (
+              <div className="flex items-center justify-center flex-1">
+                <Button
+                  onClick={handleConnect}
+                  className="nodrag"
+                  variant="outline"
+                >
+                  <LinkIcon className="w-4 h-4 mr-2" />
+                  Connect Google Drive
+                </Button>
               </div>
             )}
 
@@ -188,7 +260,7 @@ function GoogleContextNode({ id, data, selected }: GoogleContextNodeProps) {
                 <div className="flex flex-col items-center gap-2">
                   <Loader2 className="w-6 h-6 animate-spin text-primary" />
                   <p className="text-xs text-muted-foreground">
-                    {isValidating ? 'Validating...' : 'Loading metadata...'}
+                    {data.isFetchingDocuments ? 'Fetching documents...' : 'Loading content...'}
                   </p>
                 </div>
               </div>
@@ -212,16 +284,45 @@ function GoogleContextNode({ id, data, selected }: GoogleContextNodeProps) {
               </div>
             )}
 
+            {/* Document Picker State */}
+            {!data.documentId && !isLoading && !data.error && documents.length > 0 && (
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">Select Document:</label>
+                <Select onValueChange={handleDocumentSelect}>
+                  <SelectTrigger className="nodrag text-sm">
+                    <SelectValue placeholder="Choose a document..." />
+                  </SelectTrigger>
+                  <SelectContent className="nodrag max-h-60">
+                    {documents.map((doc) => (
+                      <SelectItem key={doc.id} value={doc.id}>
+                        <div className="flex items-center gap-2">
+                          {doc.type === 'docs' ? (
+                            <FileText className="w-4 h-4 text-blue-500" />
+                          ) : (
+                            <Sheet className="w-4 h-4 text-green-500" />
+                          )}
+                          <span className="truncate">{doc.name}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {documents.length} document{documents.length !== 1 ? 's' : ''} available
+                </p>
+              </div>
+            )}
+
             {/* Success State */}
-            {data.documentTitle && !isLoading && !data.error && (
+            {data.documentTitle && data.content && !isLoading && !data.error && (
               <div className="space-y-3">
                 {/* Document Info */}
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
                     {data.documentTitle}
                   </p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {data.googleLink}
+                  <p className="text-xs text-muted-foreground">
+                    {data.documentType === 'docs' ? 'Google Doc' : 'Google Sheet'}
                   </p>
                 </div>
 
@@ -253,6 +354,16 @@ function GoogleContextNode({ id, data, selected }: GoogleContextNodeProps) {
                     Last synced: {new Date(data.lastFetched).toLocaleTimeString()}
                   </p>
                 )}
+
+                {/* Change Document Button */}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="nodrag w-full text-xs"
+                  onClick={handleTryAgain}
+                >
+                  Change Document
+                </Button>
               </div>
             )}
           </div>
