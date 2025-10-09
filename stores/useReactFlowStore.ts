@@ -270,9 +270,14 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
           
           // Remove all queries related to this chat node
           queryClient.removeQueries({ queryKey: ['conversations', id] })
-          queryClient.removeQueries({ queryKey: ['messages'] }) // Clear all message caches to be safe
           
-          console.log(`✅ Cleared React Query cache for chat node: ${id}`)
+          // ✅ Invalidate with prefix matching to clear ALL message caches
+          queryClient.invalidateQueries({
+            queryKey: ['messages'],
+            exact: false  // Enable prefix matching for hierarchical keys
+          })
+          
+          console.log(`✅ Invalidated React Query cache for chat node: ${id}`)
         }
       } catch (cleanupError) {
         console.warn('Frontend cache cleanup failed:', cleanupError)

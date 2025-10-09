@@ -192,6 +192,24 @@ function GoogleContextNode({ id, data, selected, onNodeContextMenu }: GoogleCont
     })
   }, [id, updateNodeData])
 
+  // Handle change document (preserves documents array for faster document switching)
+  const handleChangeDocument = useCallback(() => {
+    // IMPORTANT: Do NOT clear the documents array (preserves cached document list)
+    updateNodeData(id, {
+      documentId: undefined,
+      documentTitle: null,
+      documentType: null,
+      mimeType: undefined,
+      content: undefined,
+      selectedSheet: null,
+      availableSheets: [],
+      lastFetched: null,
+      error: null,
+      isLoading: false,
+      isFetchingDocuments: false,
+    })
+  }, [id, updateNodeData])
+
   // Keyboard handler for delete
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -212,11 +230,16 @@ function GoogleContextNode({ id, data, selected, onNodeContextMenu }: GoogleCont
   const isLoading = data.isLoading || data.isFetchingDocuments
 
   return (
-    <div onContextMenu={onNodeContextMenu}>
-      <Card
-        className="w-[400px] h-[280px] shadow-lg border-2 border-border bg-white dark:bg-slate-800"
-        onClick={(e) => e.stopPropagation()}
+    <>
+      <div 
+        className="react-flow-node"
+        onContextMenu={onNodeContextMenu}
       >
+        <Card
+          className={`w-[400px] h-[280px] shadow-lg border-2 border-border bg-white dark:bg-slate-800 ${
+            selected ? 'ring-2 ring-yellow-500 dark:ring-yellow-400' : ''
+          }`}
+        >
         <div className="p-4 h-full flex flex-col">
           {/* Header */}
           <div className="flex items-center justify-between mb-3">
@@ -360,7 +383,7 @@ function GoogleContextNode({ id, data, selected, onNodeContextMenu }: GoogleCont
                   size="sm"
                   variant="ghost"
                   className="nodrag w-full text-xs"
-                  onClick={handleTryAgain}
+                  onClick={handleChangeDocument}
                 >
                   Change Document
                 </Button>
@@ -370,16 +393,17 @@ function GoogleContextNode({ id, data, selected, onNodeContextMenu }: GoogleCont
         </div>
       </Card>
 
-      {/* Connection Handle */}
-      <Handle
-        id="google-source"
-        type="source"
-        position={Position.Right}
-        className="!bg-primary !border-white dark:!border-slate-900"
-        style={{ width: '16px', height: '16px' }}
-        isConnectable={true}
-      />
-    </div>
+        {/* Connection Handle */}
+        <Handle
+          id="google-source"
+          type="source"
+          position={Position.Right}
+          className="!bg-primary !border-white dark:!border-slate-900"
+          style={{ width: '16px', height: '16px' }}
+          isConnectable={true}
+        />
+      </div>
+    </>
   )
 }
 
