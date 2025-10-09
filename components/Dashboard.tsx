@@ -37,7 +37,7 @@ import { Textarea } from "@/components/ui/textarea"
 import ThemeToggle from "./ThemeToggle"
 import { useAuthStore } from "@/stores/useAuthStore"
 import { useRouter } from "next/navigation"
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { renameProject, deleteProject } from '@/lib/api/projects'
 
 interface DashboardProps {
@@ -55,7 +55,7 @@ function formatRelativeTime(dateString: string): string {
   const diffHours = Math.floor(diffMins / 60)
   const diffDays = Math.floor(diffHours / 24)
   const diffWeeks = Math.floor(diffDays / 7)
-  
+
   if (diffSecs < 60) return 'just now'
   if (diffMins < 60) return `${diffMins}m ago`
   if (diffHours < 24) return `${diffHours}h ago`
@@ -69,55 +69,44 @@ export default function Dashboard({ onCreateProject, onOpenProject }: DashboardP
   const queryClient = useQueryClient()
   const [showProfileDropdown, setShowProfileDropdown] = useState(false)
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false)
-  const [projects, setProjects] = useState<ProjectWithCanvas[]>([])
-  const [isLoading, setIsLoading] = useState(true)
   const [isCreating, setIsCreating] = useState(false)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
   const [newProjectDescription, setNewProjectDescription] = useState('')
-  
+
   // State for project rename and delete
   const [renameProjectId, setRenameProjectId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null)
-  
-  // Load projects on mount
-  useEffect(() => {
-    loadProjectsData()
-  }, [])
-  
-  const loadProjectsData = async () => {
-    setIsLoading(true)
-    try {
-      const data = await loadProjects()
-      setProjects(data)
-    } catch (error) {
-      console.error('Error loading projects:', error)
-      toast.error('Failed to load projects')
-    } finally {
-      setIsLoading(false)
-    }
-  }
+
+  // Use React Query to fetch projects
+  const { data: projects = [], isLoading } = useQuery({
+    queryKey: ['projects'],
+    queryFn: loadProjects,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  })
   
   const handleCreateProject = async () => {
     if (!newProjectName.trim()) {
       toast.error('Please enter a project name')
       return
     }
-    
+
     setIsCreating(true)
     try {
       const project = await createProject(
         newProjectName.trim(),
         newProjectDescription.trim() || undefined
       )
-      
+
       if (project) {
         toast.success('Project created successfully')
         setShowCreateDialog(false)
         setNewProjectName('')
         setNewProjectDescription('')
+        // Invalidate projects query to refetch and show new project
+        queryClient.invalidateQueries({ queryKey: ['projects'] })
         onCreateProject(project.id)
       }
     } catch (error: any) {
@@ -131,30 +120,80 @@ export default function Dashboard({ onCreateProject, onOpenProject }: DashboardP
     }
   }
 
-  // Rename project mutation
+  // Rename project mutation with optimistic updates
   const renameMutation = useMutation({
     mutationFn: ({ id, name }: { id: string; name: string }) => renameProject(id, name),
+    onMutate: async ({ id, name }) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['projects'] })
+
+      // Snapshot previous value
+      const previousProjects = queryClient.getQueryData<ProjectWithCanvas[]>(['projects'])
+
+      // Optimistically update to new value
+      if (previousProjects) {
+        queryClient.setQueryData<ProjectWithCanvas[]>(
+          ['projects'],
+          previousProjects.map(p => p.id === id ? { ...p, name } : p)
+        )
+      }
+
+      return { previousProjects }
+    },
     onSuccess: () => {
-      loadProjectsData()
       setRenameProjectId(null)
+      setRenameValue('')
       toast.success('Project renamed successfully')
     },
-    onError: (error: Error) => {
+    onError: (error: Error, variables, context) => {
+      // Rollback on error
+      if (context?.previousProjects) {
+        queryClient.setQueryData(['projects'], context.previousProjects)
+      }
       toast.error(`Rename failed: ${error.message}`)
+    },
+    onSettled: () => {
+      // Always refetch after error or success
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
     }
   })
 
-  // Delete project mutation
+  // Delete project mutation with optimistic updates
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteProject(id),
+    onMutate: async (deletedProjectId) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['projects'] })
+
+      // Snapshot previous value
+      const previousProjects = queryClient.getQueryData<ProjectWithCanvas[]>(['projects'])
+
+      // Optimistically remove from list
+      if (previousProjects) {
+        queryClient.setQueryData<ProjectWithCanvas[]>(
+          ['projects'],
+          previousProjects.filter(p => p.id !== deletedProjectId)
+        )
+      }
+
+      return { previousProjects }
+    },
     onSuccess: () => {
-      loadProjectsData()
       setDeleteConfirmOpen(false)
       setProjectToDelete(null)
       toast.success('Project deleted successfully')
     },
-    onError: (error: Error) => {
+    onError: (error: Error, variables, context) => {
+      // Rollback on error
+      if (context?.previousProjects) {
+        queryClient.setQueryData(['projects'], context.previousProjects)
+      }
       toast.error(`Delete failed: ${error.message}`)
+    },
+    onSettled: (_, __, deletedProjectId) => {
+      // Clean up and refetch
+      queryClient.removeQueries({ queryKey: ['project', deletedProjectId] })
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
     }
   })
 

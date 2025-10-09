@@ -50,6 +50,9 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
   const [renameValue, setRenameValue] = useState('')
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [conversationToDelete, setConversationToDelete] = useState<UUID | null>(null)
+
+  // State for chat node deletion
+  const [deleteNodeConfirmOpen, setDeleteNodeConfirmOpen] = useState(false)
   
   const { deleteNode } = useReactFlowStore()
   const conversationStore = useConversationStore()
@@ -125,10 +128,13 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
     onSuccess: () => {
       // 1. Remove from React Flow state
       deleteNode(id)
-      
+
       // 2. Remove conversations cache for this node
       queryClient.removeQueries({ queryKey: ['conversations', chatNodeId] })
-      
+
+      // 3. Close confirmation dialog
+      setDeleteNodeConfirmOpen(false)
+
       toast.success('Chat node and all conversations deleted')
     },
     onError: (error: Error) => {
@@ -140,15 +146,41 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
   // Rename conversation mutation
   const renameMutation = useMutation({
     mutationFn: ({ id, title }: { id: UUID; title: string }) =>
-      updateConversation(id, { title }),
+      updateConversation({ conversation_id: id, title }),
+    onMutate: async ({ id, title }) => {
+      // Cancel outgoing queries
+      await queryClient.cancelQueries({ queryKey: ['conversations', chatNodeId] })
+
+      // Snapshot previous value
+      const previousConversations = queryClient.getQueryData<Conversation[]>(['conversations', chatNodeId])
+
+      // Optimistic update
+      if (previousConversations) {
+        queryClient.setQueryData<Conversation[]>(
+          ['conversations', chatNodeId],
+          previousConversations.map(conv =>
+            conv.id === id ? { ...conv, title } : conv
+          )
+        )
+      }
+
+      return { previousConversations }
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['conversations', chatNodeId] })
       setRenameConversationId(null)
       toast.success('Conversation renamed')
     },
-    onError: (error: Error) => {
+    onError: (error: Error, variables, context) => {
+      // Rollback on error
+      if (context?.previousConversations) {
+        queryClient.setQueryData(['conversations', chatNodeId], context.previousConversations)
+      }
       console.error('Failed to rename conversation:', error)
       toast.error(`Rename failed: ${error.message}`)
+    },
+    onSettled: () => {
+      // Refetch to ensure sync with backend
+      queryClient.invalidateQueries({ queryKey: ['conversations', chatNodeId] })
     }
   })
 
@@ -159,10 +191,10 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
       // Invalidate conversations list
       queryClient.invalidateQueries({ queryKey: ['conversations', chatNodeId] })
 
-      // If deleted conversation was active, clear active state
+      // If deleted conversation was active, clear messages cache
       if (conversationToDelete === activeConversationId) {
-        conversationStore.setActiveConversation(chatNodeId, undefined)
         queryClient.removeQueries({ queryKey: ['messages', conversationToDelete] })
+        // Note: Active conversation state will be cleared by conversation list refresh
       }
 
       setDeleteConfirmOpen(false)
@@ -206,12 +238,7 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
 
   // Handler functions - defined before useEffects to avoid dependency issues
   const handleDelete = () => {
-    const confirmed = window.confirm(
-      'Delete this chat node? All conversations and messages will be permanently deleted.'
-    )
-    if (confirmed) {
-      deleteChatNodeMutation.mutate()
-    }
+    setDeleteNodeConfirmOpen(true)
   }
   
   const handleCreateConversation = () => {
@@ -701,6 +728,27 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => conversationToDelete && deleteConversationMutation.mutate(conversationToDelete)}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Chat Node Confirmation Dialog */}
+      <AlertDialog open={deleteNodeConfirmOpen} onOpenChange={setDeleteNodeConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Chat Node?</AlertDialogTitle>
+            <AlertDialogDescription>
+              All conversations and messages will be permanently deleted. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteChatNodeMutation.mutate()}
               className="bg-destructive hover:bg-destructive/90"
             >
               Delete

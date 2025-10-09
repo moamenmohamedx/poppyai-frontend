@@ -230,28 +230,41 @@ export const useReactFlowStore = create<ReactFlowStore>((set, get) => ({
   deleteNode: async (id) => {
     const state = get()
     const nodeToDelete = state.nodes.find(node => node.id === id)
-    
+
     // If it's a chat node, call backend API to delete conversations and messages
     if (nodeToDelete?.type === 'chatNode') {
       const backendUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000'
-      
+
       try {
+        // Get auth token from localStorage
+        const token = localStorage.getItem('printer_auth_token')
+
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json',
+        }
+
+        // Add Authorization header if token exists
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`
+        }
+
         const response = await fetch(`${backendUrl}/api/chat-nodes/${encodeURIComponent(id)}`, {
           method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers,
         })
 
         if (response.ok) {
           const result = await response.json()
           console.log(`✅ Backend cleanup: ${result.deleted_conversations} conversations and ${result.deleted_messages} messages deleted`)
         } else {
-          console.warn('Backend cleanup failed for chat node, but continuing with node deletion')
+          const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }))
+          console.error(`❌ Backend cleanup failed (${response.status}): ${errorData.detail}`)
+          throw new Error(`Failed to delete chat node: ${errorData.detail}`)
         }
       } catch (backendError) {
-        // Log but don't fail - backend might be offline
-        console.warn('Backend API unavailable for chat node cleanup:', backendError)
+        // Don't swallow errors silently - propagate them
+        console.error('Backend API error during chat node deletion:', backendError)
+        throw backendError
       }
       
       // ⚠️ CRITICAL: Clear frontend caches for this chat node
