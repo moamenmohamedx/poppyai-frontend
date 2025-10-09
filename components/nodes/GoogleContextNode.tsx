@@ -236,7 +236,7 @@ function GoogleContextNode({ id, data, selected, onNodeContextMenu }: GoogleCont
         onContextMenu={onNodeContextMenu}
       >
         <Card
-          className={`w-[400px] h-[280px] shadow-lg border-2 border-border bg-white dark:bg-slate-800 ${
+          className={`w-[400px] h-[320px] shadow-lg border-2 border-border bg-white dark:bg-slate-800 ${
             selected ? 'ring-2 ring-yellow-500 dark:ring-yellow-400' : ''
           }`}
         >

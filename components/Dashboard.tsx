@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { FileText, Video, ImageIcon, Clock, Bell, User, Play, Plus, Loader2 } from "lucide-react"
+import { FileText, Video, ImageIcon, Clock, Bell, User, Play, Plus, Loader2, MoreVertical, Edit2, Trash2 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { loadProjects, createProject } from "@/lib/supabase/projects"
 import { ProjectWithCanvas } from "@/lib/supabase/types"
@@ -15,12 +15,30 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import ThemeToggle from "./ThemeToggle"
 import { useAuthStore } from "@/stores/useAuthStore"
 import { useRouter } from "next/navigation"
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { renameProject, deleteProject } from '@/lib/api/projects'
 
 interface DashboardProps {
   onCreateProject: (projectId: string) => void
@@ -48,6 +66,7 @@ function formatRelativeTime(dateString: string): string {
 export default function Dashboard({ onCreateProject, onOpenProject }: DashboardProps) {
   const router = useRouter()
   const { logout } = useAuthStore()
+  const queryClient = useQueryClient()
   const [showProfileDropdown, setShowProfileDropdown] = useState(false)
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false)
   const [projects, setProjects] = useState<ProjectWithCanvas[]>([])
@@ -56,6 +75,12 @@ export default function Dashboard({ onCreateProject, onOpenProject }: DashboardP
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
   const [newProjectDescription, setNewProjectDescription] = useState('')
+  
+  // State for project rename and delete
+  const [renameProjectId, setRenameProjectId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [projectToDelete, setProjectToDelete] = useState<string | null>(null)
   
   // Load projects on mount
   useEffect(() => {
@@ -105,6 +130,33 @@ export default function Dashboard({ onCreateProject, onOpenProject }: DashboardP
       setIsCreating(false)
     }
   }
+
+  // Rename project mutation
+  const renameMutation = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) => renameProject(id, name),
+    onSuccess: () => {
+      loadProjectsData()
+      setRenameProjectId(null)
+      toast.success('Project renamed successfully')
+    },
+    onError: (error: Error) => {
+      toast.error(`Rename failed: ${error.message}`)
+    }
+  })
+
+  // Delete project mutation
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteProject(id),
+    onSuccess: () => {
+      loadProjectsData()
+      setDeleteConfirmOpen(false)
+      setProjectToDelete(null)
+      toast.success('Project deleted successfully')
+    },
+    onError: (error: Error) => {
+      toast.error(`Delete failed: ${error.message}`)
+    }
+  })
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-black transition-colors">
@@ -312,44 +364,133 @@ export default function Dashboard({ onCreateProject, onOpenProject }: DashboardP
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {projects.map((project) => (
-              <Card
-                key={project.id}
-                className="overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer rounded-2xl border-0 shadow-sm bg-white dark:bg-black dark:border dark:border-purple-500/20 hover:scale-[1.02] dark:hover:shadow-[0_0_40px_rgba(168,85,247,0.3)] group"
-                onClick={() => onOpenProject(project.id)}
-              >
-                <div className="aspect-video bg-gradient-to-br from-slate-100 to-slate-200 dark:from-purple-900/20 dark:to-cyan-900/20 relative overflow-hidden">
-                  {project.thumbnail ? (
-                    <img
-                      src={project.thumbnail}
-                      alt={project.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <div className="text-center">
-                        <div className="w-12 h-12 bg-white/50 dark:bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-2 dark:border dark:border-purple-500/30">
-                          <FileText className="w-6 h-6 text-slate-400 dark:text-purple-400" />
+              <div key={project.id} className="relative group">
+                <Card
+                  className="overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer rounded-2xl border-0 shadow-sm bg-white dark:bg-black dark:border dark:border-purple-500/20 hover:scale-[1.02] dark:hover:shadow-[0_0_40px_rgba(168,85,247,0.3)]"
+                  onClick={() => renameProjectId !== project.id && onOpenProject(project.id)}
+                >
+                  <div className="aspect-video bg-gradient-to-br from-slate-100 to-slate-200 dark:from-purple-900/20 dark:to-cyan-900/20 relative overflow-hidden">
+                    {project.thumbnail ? (
+                      <img
+                        src={project.thumbnail}
+                        alt={project.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <div className="text-center">
+                          <div className="w-12 h-12 bg-white/50 dark:bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-2 dark:border dark:border-purple-500/30">
+                            <FileText className="w-6 h-6 text-slate-400 dark:text-purple-400" />
+                          </div>
+                          <p className="text-sm text-slate-500 dark:text-purple-400/70 font-medium">No preview</p>
                         </div>
-                        <p className="text-sm text-slate-500 dark:text-purple-400/70 font-medium">No preview</p>
                       </div>
-                    </div>
-                  )}
-                </div>
-                <div className="p-6">
-                  <h4 className="font-bold text-slate-900 dark:text-white mb-2 text-lg leading-tight">{project.name}</h4>
-                  {project.description && (
-                    <p className="text-sm text-slate-600 dark:text-purple-300/70 mb-4 line-clamp-2">{project.description}</p>
-                  )}
-                  <div className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-purple-400/60 font-medium">
-                    <Clock className="w-4 h-4" />
-                    <span>Updated {formatRelativeTime(project.updated_at)}</span>
+                    )}
                   </div>
-                </div>
-              </Card>
+                  <div className="p-6">
+                    <div className="flex items-start justify-between mb-2">
+                      {renameProjectId === project.id ? (
+                        <input
+                          type="text"
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          onBlur={() => {
+                            if (renameValue.trim() && renameValue !== project.name) {
+                              renameMutation.mutate({ id: project.id, name: renameValue })
+                            } else {
+                              setRenameProjectId(null)
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && renameValue.trim() && renameValue !== project.name) {
+                              renameMutation.mutate({ id: project.id, name: renameValue })
+                            } else if (e.key === 'Escape') {
+                              setRenameProjectId(null)
+                            }
+                          }}
+                          autoFocus
+                          className="flex-1 px-2 py-1 text-lg font-bold rounded border border-indigo-500 dark:border-purple-500 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <>
+                          <h4 className="font-bold text-slate-900 dark:text-white text-lg leading-tight flex-1">{project.name}</h4>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity -mt-1"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <MoreVertical className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setRenameProjectId(project.id)
+                                  setRenameValue(project.name)
+                                }}
+                              >
+                                <Edit2 className="w-4 h-4 mr-2" />
+                                Rename
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setProjectToDelete(project.id)
+                                  setDeleteConfirmOpen(true)
+                                }}
+                                className="text-destructive"
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </>
+                      )}
+                    </div>
+                    {project.description && (
+                      <p className="text-sm text-slate-600 dark:text-purple-300/70 mb-4 line-clamp-2">{project.description}</p>
+                    )}
+                    <div className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-purple-400/60 font-medium">
+                      <Clock className="w-4 h-4" />
+                      <span>Updated {formatRelativeTime(project.updated_at)}</span>
+                    </div>
+                  </div>
+                </Card>
+              </div>
             ))}
           </div>
         )}
       </section>
+
+      {/* Delete Project Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Project?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the project and all associated data
+              (canvas, conversations, messages). This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setProjectToDelete(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => projectToDelete && deleteMutation.mutate(projectToDelete)}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -4,7 +4,23 @@ import { memo, useState, useEffect, useRef } from 'react'
 import { NodeProps, Handle, Position } from '@xyflow/react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { MessageSquare, X, Plus, Send, Paperclip, Globe, FileText, Image, Copy, Bot } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { MessageSquare, X, Plus, Send, Paperclip, Globe, FileText, Image, Copy, Bot, MoreVertical, Edit2, Trash2 } from 'lucide-react'
 import { useReactFlowStore } from '@/stores/useReactFlowStore'
 import { useConversationStore } from '@/stores/useConversationStore'
 import { useProjectStore } from '@/stores/useProjectStore'
@@ -15,7 +31,9 @@ import {
   createConversation, 
   getConversationsForNode, 
   getMessages,
-  updateConversation 
+  updateConversation,
+  deleteConversation,
+  deleteChatNode
 } from '../../lib/api/conversations'
 import { useStreamingChat } from '@/hooks/useStreamingChat'
 
@@ -26,6 +44,12 @@ interface ChatNodeProps extends NodeProps {
 function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
   const [message, setMessage] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  
+  // State for conversation rename and delete
+  const [renameConversationId, setRenameConversationId] = useState<UUID | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [conversationToDelete, setConversationToDelete] = useState<UUID | null>(null)
   
   const { deleteNode } = useReactFlowStore()
   const conversationStore = useConversationStore()
@@ -95,6 +119,62 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
     }
   })
   
+  // Delete chat node mutation
+  const deleteChatNodeMutation = useMutation({
+    mutationFn: () => deleteChatNode(chatNodeId),
+    onSuccess: () => {
+      // 1. Remove from React Flow state
+      deleteNode(id)
+      
+      // 2. Remove conversations cache for this node
+      queryClient.removeQueries({ queryKey: ['conversations', chatNodeId] })
+      
+      toast.success('Chat node and all conversations deleted')
+    },
+    onError: (error: Error) => {
+      console.error('Failed to delete chat node:', error)
+      toast.error(`Failed to delete: ${error.message}`)
+    }
+  })
+  
+  // Rename conversation mutation
+  const renameMutation = useMutation({
+    mutationFn: ({ id, title }: { id: UUID; title: string }) =>
+      updateConversation(id, { title }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['conversations', chatNodeId] })
+      setRenameConversationId(null)
+      toast.success('Conversation renamed')
+    },
+    onError: (error: Error) => {
+      console.error('Failed to rename conversation:', error)
+      toast.error(`Rename failed: ${error.message}`)
+    }
+  })
+
+  // Delete conversation mutation
+  const deleteConversationMutation = useMutation({
+    mutationFn: (id: UUID) => deleteConversation(id),
+    onSuccess: () => {
+      // Invalidate conversations list
+      queryClient.invalidateQueries({ queryKey: ['conversations', chatNodeId] })
+
+      // If deleted conversation was active, clear active state
+      if (conversationToDelete === activeConversationId) {
+        conversationStore.setActiveConversation(chatNodeId, undefined)
+        queryClient.removeQueries({ queryKey: ['messages', conversationToDelete] })
+      }
+
+      setDeleteConfirmOpen(false)
+      setConversationToDelete(null)
+      toast.success('Conversation deleted')
+    },
+    onError: (error: Error) => {
+      console.error('Failed to delete conversation:', error)
+      toast.error(`Delete failed: ${error.message}`)
+    }
+  })
+  
   // Streaming chat hook - replaces chatMutation
   const {
     isStreaming,
@@ -124,6 +204,24 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
     }
   })
 
+  // Handler functions - defined before useEffects to avoid dependency issues
+  const handleDelete = () => {
+    const confirmed = window.confirm(
+      'Delete this chat node? All conversations and messages will be permanently deleted.'
+    )
+    if (confirmed) {
+      deleteChatNodeMutation.mutate()
+    }
+  }
+  
+  const handleCreateConversation = () => {
+    createConversationMutation.mutate()
+  }
+  
+  const handleSelectConversation = (conversationId: UUID) => {
+    conversationStore.setActiveConversation(chatNodeId, conversationId)
+  }
+
   // Auto-scroll to bottom of messages
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -138,8 +236,7 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Delete') {
         e.preventDefault()
-        deleteNode(id)
-        toast.success('Node deleted')
+        handleDelete()
       }
     }
     
@@ -147,21 +244,7 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [selected, id, deleteNode])
-  
-  // Handler functions
-  const handleDelete = () => {
-    deleteNode(id)
-    toast.success('Node deleted')
-  }
-  
-  const handleCreateConversation = () => {
-    createConversationMutation.mutate()
-  }
-  
-  const handleSelectConversation = (conversationId: UUID) => {
-    conversationStore.setActiveConversation(chatNodeId, conversationId)
-  }
+  }, [selected, handleDelete])
   
   // Early return AFTER all hooks - this is safe
   if (!chatNodeId || !data) {
@@ -355,17 +438,81 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
                   </div>
                 ) : (
                   conversations.map((conv) => (
-                    <button
-                      key={conv.id}
-                      onClick={() => handleSelectConversation(conv.id)}
-                      className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-all mb-1 ${
-                        activeConversationId === conv.id 
-                          ? 'bg-white dark:bg-slate-800 text-purple-700 dark:text-purple-300 shadow-sm font-medium' 
-                          : 'hover:bg-purple-100/50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
-                      }`}
-                    >
-                      {conv.title}
-                    </button>
+                    <div key={conv.id} className="relative group mb-1">
+                      {renameConversationId === conv.id ? (
+                        <input
+                          type="text"
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          onBlur={() => {
+                            if (renameValue.trim() && renameValue !== conv.title) {
+                              renameMutation.mutate({ id: conv.id, title: renameValue })
+                            } else {
+                              setRenameConversationId(null)
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && renameValue.trim() && renameValue !== conv.title) {
+                              renameMutation.mutate({ id: conv.id, title: renameValue })
+                            } else if (e.key === 'Escape') {
+                              setRenameConversationId(null)
+                            }
+                          }}
+                          autoFocus
+                          className="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-slate-800 border border-purple-500"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <div className="flex items-center justify-between">
+                          <button
+                            onClick={() => handleSelectConversation(conv.id)}
+                            className={`flex-1 text-left px-3 py-2 text-sm rounded-lg transition-all ${
+                              activeConversationId === conv.id
+                                ? 'bg-white dark:bg-slate-800 text-purple-700 dark:text-purple-300 shadow-sm font-medium'
+                                : 'hover:bg-purple-100/50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
+                            }`}
+                          >
+                            {conv.title}
+                          </button>
+
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <MoreVertical className="w-3 h-3" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setRenameConversationId(conv.id)
+                                  setRenameValue(conv.title)
+                                }}
+                              >
+                                <Edit2 className="w-3 h-3 mr-2" />
+                                Rename
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setConversationToDelete(conv.id)
+                                  setDeleteConfirmOpen(true)
+                                }}
+                                className="text-destructive"
+                              >
+                                <Trash2 className="w-3 h-3 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      )}
+                    </div>
                   ))
                 )}
               </div>
@@ -537,6 +684,30 @@ function ChatNode({ id, data, selected, onNodeContextMenu }: ChatNodeProps) {
         </Card>
         
       </div>
+
+      {/* Delete Conversation Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Conversation?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the conversation and all its messages.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setConversationToDelete(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => conversationToDelete && deleteConversationMutation.mutate(conversationToDelete)}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

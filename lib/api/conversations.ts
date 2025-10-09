@@ -121,6 +121,25 @@ export async function deleteConversation(conversation_id: UUID): Promise<void> {
   }
 }
 
+export async function deleteChatNode(chat_node_id: string): Promise<void> {
+  try {
+    const response = await fetch(`${baseUrl}/api/chat-nodes/${chat_node_id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    // Delete endpoints return void
+    return
+  } catch (error) {
+    console.error('Delete Chat Node Error:', error)
+    throw new Error(error instanceof Error ? error.message : 'Failed to delete chat node')
+  }
+}
+
 // Additional utility functions for project-level operations
 
 export async function getConversationsForProject(project_id: UUID): Promise<Conversation[]> {
