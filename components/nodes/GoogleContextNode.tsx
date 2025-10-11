@@ -12,13 +12,41 @@
  * 6. Success → Content stored in node.data.content
  */
 
-import { memo, useState, useCallback, useEffect } from 'react'
+import { memo, useState, useCallback, useEffect, useMemo } from 'react'
 import { NodeProps, Handle, Position, useReactFlow } from '@xyflow/react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Loader2, FileText, Sheet, AlertCircle, X, Link as LinkIcon } from 'lucide-react'
+import { Loader2, FileText, Sheet, AlertCircle, X, Link as LinkIcon, ChevronDown, ChevronRight, Maximize2 } from 'lucide-react'
 import { toast } from 'sonner'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   initiateGoogleOAuth,
   fetchUserDocuments,
@@ -36,6 +64,47 @@ interface GoogleContextNodeProps extends NodeProps {
 function GoogleContextNode({ id, data, selected, onNodeContextMenu }: GoogleContextNodeProps) {
   const { updateNodeData, deleteElements } = useReactFlow()
   const [documents, setDocuments] = useState<GoogleDocument[]>([])
+  const [searchQuery, setSearchQuery] = useState("")
+  const [isPreviewExpanded, setIsPreviewExpanded] = useState(false)
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false)
+  const [isCommandOpen, setIsCommandOpen] = useState(false)
+
+  // Filtered documents with fuzzy search
+  const filteredDocuments = useMemo(() => {
+    if (!searchQuery.trim()) return documents
+
+    const query = searchQuery.toLowerCase().trim()
+    return documents
+      .filter(doc => doc.name.toLowerCase().includes(query))
+      .sort((a, b) => {
+        // Prioritize prefix matches over substring matches
+        const aStartsWith = a.name.toLowerCase().startsWith(query)
+        const bStartsWith = b.name.toLowerCase().startsWith(query)
+        if (aStartsWith && !bStartsWith) return -1
+        if (!aStartsWith && bStartsWith) return 1
+        return 0
+      })
+  }, [documents, searchQuery])
+
+  // Generate preview text with word boundary truncation
+  const generatePreview = useCallback((content: string | undefined, type: 'docs' | 'sheets' | null): string => {
+    if (!content) return 'No content available'
+
+    if (type === 'docs') {
+      // Docs: 250 chars with word boundary
+      if (content.length <= 250) return content
+      const truncated = content.substring(0, 250)
+      const lastSpace = truncated.lastIndexOf(' ')
+      return lastSpace > 200 ? truncated.substring(0, lastSpace) + '...' : truncated + '...'
+    } else if (type === 'sheets') {
+      // Sheets: First 5 rows
+      const lines = content.split('\n')
+      const previewLines = lines.slice(0, 5)
+      return previewLines.join('\n') + (lines.length > 5 ? '\n...' : '')
+    }
+
+    return content.substring(0, 250) + '...'
+  }, [])
 
   // Handle OAuth connection
   const handleConnect = useCallback(async () => {
@@ -311,25 +380,57 @@ function GoogleContextNode({ id, data, selected, onNodeContextMenu }: GoogleCont
             {!data.documentId && !isLoading && !data.error && documents.length > 0 && (
               <div className="space-y-2">
                 <label className="text-xs text-muted-foreground">Select Document:</label>
-                <Select onValueChange={handleDocumentSelect}>
-                  <SelectTrigger className="nodrag text-sm">
-                    <SelectValue placeholder="Choose a document..." />
-                  </SelectTrigger>
-                  <SelectContent className="nodrag max-h-60">
-                    {documents.map((doc) => (
-                      <SelectItem key={doc.id} value={doc.id}>
-                        <div className="flex items-center gap-2">
-                          {doc.type === 'docs' ? (
-                            <FileText className="w-4 h-4 text-blue-500" />
-                          ) : (
-                            <Sheet className="w-4 h-4 text-green-500" />
-                          )}
-                          <span className="truncate">{doc.name}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={isCommandOpen} onOpenChange={setIsCommandOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={isCommandOpen}
+                      className="nodrag w-full justify-between text-sm"
+                    >
+                      <span className="text-muted-foreground">Search documents...</span>
+                      <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[360px] p-0 nodrag" align="start">
+                    <Command className="rounded-md border-0">
+                      <CommandInput
+                        placeholder="Search documents..."
+                        value={searchQuery}
+                        onValueChange={setSearchQuery}
+                        className="text-sm"
+                      />
+                      <CommandList className="max-h-60">
+                        <CommandEmpty className="py-6 text-center text-sm text-muted-foreground">
+                          No documents found
+                        </CommandEmpty>
+                        <CommandGroup>
+                          {filteredDocuments.map((doc) => (
+                            <CommandItem
+                              key={doc.id}
+                              value={doc.id}
+                              onSelect={() => {
+                                handleDocumentSelect(doc.id)
+                                setSearchQuery("")
+                                setIsCommandOpen(false)
+                              }}
+                              className="cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2">
+                                {doc.type === 'docs' ? (
+                                  <FileText className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                                ) : (
+                                  <Sheet className="w-4 h-4 text-green-500 flex-shrink-0" />
+                                )}
+                                <span className="truncate">{doc.name}</span>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
                 <p className="text-xs text-muted-foreground">
                   {documents.length} document{documents.length !== 1 ? 's' : ''} available
                 </p>
@@ -348,6 +449,52 @@ function GoogleContextNode({ id, data, selected, onNodeContextMenu }: GoogleCont
                     {data.documentType === 'docs' ? 'Google Doc' : 'Google Sheet'}
                   </p>
                 </div>
+
+                {/* Document Preview */}
+                <Collapsible
+                  open={isPreviewExpanded}
+                  onOpenChange={setIsPreviewExpanded}
+                  className="nodrag"
+                >
+                  <CollapsibleTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="nodrag w-full justify-between text-xs p-2 h-auto"
+                    >
+                      <span className="text-muted-foreground">Document Preview</span>
+                      {isPreviewExpanded ? (
+                        <ChevronDown className="h-3 w-3" />
+                      ) : (
+                        <ChevronRight className="h-3 w-3" />
+                      )}
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-2">
+                    <div className="rounded-md border border-border p-3 bg-muted/30 max-h-32 overflow-y-auto">
+                      {data.documentType === 'docs' ? (
+                        <div className="text-xs text-foreground prose prose-sm dark:prose-invert max-w-none">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {generatePreview(data.content, data.documentType)}
+                          </ReactMarkdown>
+                        </div>
+                      ) : (
+                        <pre className="text-xs text-foreground font-mono whitespace-pre-wrap">
+                          {generatePreview(data.content, data.documentType)}
+                        </pre>
+                      )}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="nodrag w-full text-xs"
+                      onClick={() => setIsPreviewModalOpen(true)}
+                    >
+                      <Maximize2 className="h-3 w-3 mr-1" />
+                      View Full Document
+                    </Button>
+                  </CollapsibleContent>
+                </Collapsible>
 
                 {/* Sheet Selector (only for Sheets) */}
                 {data.documentType === 'sheets' && data.availableSheets && data.availableSheets.length > 0 && (
@@ -403,6 +550,43 @@ function GoogleContextNode({ id, data, selected, onNodeContextMenu }: GoogleCont
           isConnectable={true}
         />
       </div>
+
+      {/* Full Preview Modal */}
+      <Dialog open={isPreviewModalOpen} onOpenChange={setIsPreviewModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {data.documentType === 'docs' && <FileText className="w-5 h-5 text-blue-500" />}
+              {data.documentType === 'sheets' && <Sheet className="w-5 h-5 text-green-500" />}
+              {data.documentTitle}
+            </DialogTitle>
+            <DialogDescription>
+              {data.documentType === 'docs' ? 'Google Doc' : 'Google Sheet'} - Full Content
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto border rounded-md p-4 bg-muted/30">
+            {data.documentType === 'docs' ? (
+              <div className="prose prose-sm dark:prose-invert max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {data.content || 'No content available'}
+                </ReactMarkdown>
+              </div>
+            ) : (
+              <pre className="text-sm font-mono whitespace-pre-wrap">
+                {data.content || 'No content available'}
+              </pre>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsPreviewModalOpen(false)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
